@@ -14,9 +14,15 @@ import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { removeSlide } from '@/lib/google/slides'
 
 export async function GET(req: NextRequest) {
-  // Validate cron secret to prevent unauthorized calls
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.CRON_SECRET) {
+  // Support both Vercel Cron (Authorization header) and manual calls (?secret=)
+  const authHeader = req.headers.get('authorization')
+  const querySecret = req.nextUrl.searchParams.get('secret')
+  const validSecret = process.env.CRON_SECRET
+
+  const authorized =
+    authHeader === `Bearer ${validSecret}` || querySecret === validSecret
+
+  if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
