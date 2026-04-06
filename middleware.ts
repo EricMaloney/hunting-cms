@@ -18,7 +18,12 @@ export default withAuth(
       // Admin route protection
       if (pathname.startsWith('/dashboard/admin')) {
         const role = token.role as string | undefined
-        if (role !== 'admin') {
+        // Library is accessible to lead + admin
+        if (pathname.startsWith('/dashboard/admin/library')) {
+          if (role !== 'admin' && role !== 'lead') {
+            return NextResponse.redirect(new URL('/dashboard', req.url))
+          }
+        } else if (role !== 'admin') {
           return NextResponse.redirect(new URL('/dashboard', req.url))
         }
       }
@@ -31,8 +36,10 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const pathname = req.nextUrl.pathname
 
-        // Allow access to login page without auth
+        // Allow public routes without auth
         if (pathname === '/login') return true
+        if (pathname === '/community') return true
+        if (pathname === '/api/community-uploads' && req.method === 'POST') return true
 
         // All other routes require auth
         return !!token
