@@ -169,6 +169,8 @@ export interface CommunityUpload {
   file_name: string
   file_size_bytes: number | null
   content_type: 'image' | 'video'
+  google_drive_file_id: string | null
+  google_drive_url: string | null
   created_at: string
   is_active: boolean
 }

@@ -84,6 +84,20 @@ function Lightbox({ upload, onClose }: { upload: CommunityUpload; onClose: () =>
               </svg>
               Open
             </a>
+            {/* Google Drive link */}
+            {upload.google_drive_url && (
+              <a
+                href={upload.google_drive_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-medium rounded-lg transition-colors border border-green-200"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4.433 22.396l4-6.929H22l-4 6.929H4.433zm3.566-6.929L2 24h13.567l6-10.396H10L8 15.467zM14 2L8 12.533h8l6-10.396L14 2zm-2 0L6 12.533h2.567L14 2H12zM10 12.533L4.433 22.396H7l5.567-9.863H10z"/>
+                </svg>
+                Drive
+              </a>
+            )}
             {/* Copy URL */}
             <CopyButton url={upload.file_url} />
             {/* Download */}

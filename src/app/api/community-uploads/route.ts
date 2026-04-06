@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { uploadToCommunityDrive } from '@/lib/google/drive'
 import type { ApiResponse, CommunityUpload } from '@/types'
 
 // GET — authenticated (lead/admin) browse
@@ -47,23 +48,30 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<C
       return NextResponse.json({ error: `File too large (max ${isImage ? '20 MB' : '500 MB'})` }, { status: 400 })
     }
 
-    // Upload to Supabase "community" bucket
+    // Read file once — reuse buffer for both Supabase and Drive
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    // ── 1. Upload to Supabase (primary store / fast CDN) ──────────────────────
     const ext = file.name.split('.').pop() || 'bin'
     const safeName = submitterName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 30)
     const storagePath = `${safeName}-${Date.now()}.${ext}`
 
-    const arrayBuffer = await file.arrayBuffer()
     const { error: uploadError } = await supabaseAdmin.storage
       .from('community')
-      .upload(storagePath, arrayBuffer, { contentType: file.type, upsert: false })
+      .upload(storagePath, buffer, { contentType: file.type, upsert: false })
 
     if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
 
-    // Get public URL
     const { data: urlData } = supabaseAdmin.storage.from('community').getPublicUrl(storagePath)
     const fileUrl = urlData.publicUrl
 
-    // Insert into DB
+    // ── 2. Mirror to Google Drive (secondary store — non-blocking on failure) ─
+    // Drive upload can be slow for large files; run but don't block the response
+    // For videos this may hit Vercel's timeout — Drive link will be null in that case
+    const driveResult = await uploadToCommunityDrive(file.name, file.type, buffer)
+
+    // ── 3. Insert into DB ─────────────────────────────────────────────────────
     const { data: row, error: dbError } = await supabaseAdmin
       .from('community_uploads')
       .insert({
@@ -73,6 +81,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<C
         file_name: file.name,
         file_size_bytes: file.size,
         content_type: contentType,
+        google_drive_file_id: driveResult?.fileId ?? null,
+        google_drive_url: driveResult?.driveUrl ?? null,
       })
       .select()
       .single()
