@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import type { Submission, SubmissionStatus } from '@/types'
+import type { Tag } from '@/types'
 import { SubmissionCard } from './SubmissionCard'
 import { ApprovalPanel } from '@/components/admin/ApprovalPanel'
+import { BulkApproveModal } from './BulkApproveModal'
 
 interface SubmissionListProps {
   userId?: string
@@ -33,6 +35,7 @@ interface Filters {
   dateFrom: string
   dateTo: string
   sort: SortField
+  tagId: string
 }
 
 const DEFAULT_FILTERS: Filters = {
@@ -41,6 +44,7 @@ const DEFAULT_FILTERS: Filters = {
   dateFrom: '',
   dateTo: '',
   sort: 'date_desc',
+  tagId: '',
 }
 
 function FiltersBar({
@@ -49,16 +53,18 @@ function FiltersBar({
   submitters,
   resultCount,
   totalCount,
+  tags,
 }: {
   filters: Filters
   onChange: (f: Filters) => void
   submitters: { id: string; name: string | null; email: string }[]
   resultCount: number
   totalCount: number
+  tags: Tag[]
 }) {
   const [open, setOpen] = useState(false)
   const hasActiveFilters =
-    filters.userId || filters.contentType || filters.dateFrom || filters.dateTo || filters.sort !== 'date_desc'
+    filters.userId || filters.contentType || filters.dateFrom || filters.dateTo || filters.sort !== 'date_desc' || filters.tagId
 
   return (
     <div className="mb-4">
@@ -131,6 +137,21 @@ function FiltersBar({
               </select>
             </div>
 
+            {/* Tag filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Tag</label>
+              <select
+                value={filters.tagId}
+                onChange={(e) => onChange({ ...filters, tagId: e.target.value })}
+                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] bg-white"
+              >
+                <option value="">All tags</option>
+                {tags.map((tag) => (
+                  <option key={tag.id} value={tag.id}>{tag.name}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Date from */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">From date</label>
@@ -196,6 +217,10 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
+  const [tags, setTags] = useState<Tag[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showBulkModal, setShowBulkModal] = useState(false)
+
   const fetchSubmissions = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -229,12 +254,20 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
     setConfirmBulkClear(false)
     setSearchQuery('')
     setDebouncedSearch('')
+    setSelectedIds(new Set())
   }, [activeTab])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
     return () => clearTimeout(timer)
   }, [searchQuery])
+
+  useEffect(() => {
+    fetch('/api/tags')
+      .then((r) => r.json())
+      .then((json) => setTags(json.data || []))
+      .catch(() => {})
+  }, [])
 
   const handleDelete = (id: string) => {
     setSubmissions((prev) => prev.filter((s) => s.id !== id))
@@ -290,6 +323,10 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
       const to = new Date(filters.dateTo)
       to.setHours(23, 59, 59, 999)
       list = list.filter((s) => new Date(s.created_at) <= to)
+    }
+
+    if (filters.tagId) {
+      list = list.filter((s) => s.tags?.some((t) => t.id === filters.tagId))
     }
 
     if (debouncedSearch) {
@@ -428,6 +465,7 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
           submitters={submitters}
           resultCount={filteredSubmissions.length}
           totalCount={submissions.length}
+          tags={tags}
         />
       )}
 
@@ -490,16 +528,64 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
       {/* List */}
       {!loading && !error && filteredSubmissions.length > 0 && (
         <div className="space-y-3">
+          {/* Bulk select bar — admin + pending tab only */}
+          {isAdmin && activeTab === 'pending' && filteredSubmissions.length > 1 && (
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === filteredSubmissions.length}
+                  onChange={(e) => {
+                    setSelectedIds(e.target.checked
+                      ? new Set(filteredSubmissions.map((s) => s.id))
+                      : new Set()
+                    )
+                  }}
+                  className="w-4 h-4 rounded text-[#1a1a2e]"
+                />
+                Select all ({filteredSubmissions.length})
+              </label>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={() => setShowBulkModal(true)}
+                  className="flex items-center gap-2 px-4 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Approve {selectedIds.size} selected
+                </button>
+              )}
+            </div>
+          )}
           {filteredSubmissions.map((submission) => (
-            <SubmissionCard
-              key={submission.id}
-              submission={submission}
-              isAdmin={isAdmin}
-              isLead={isLead}
-              currentUserId={currentUserId}
-              onReview={isAdmin ? setReviewingSubmission : undefined}
-              onDelete={handleDelete}
-            />
+            <div key={submission.id} className="relative">
+              {isAdmin && activeTab === 'pending' && (
+                <div className="absolute top-3 left-3 z-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(submission.id)}
+                    onChange={(e) => {
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev)
+                        e.target.checked ? next.add(submission.id) : next.delete(submission.id)
+                        return next
+                      })
+                    }}
+                    className="w-4 h-4 rounded text-[#1a1a2e] cursor-pointer"
+                  />
+                </div>
+              )}
+              <SubmissionCard
+                submission={submission}
+                isAdmin={isAdmin}
+                isLead={isLead}
+                currentUserId={currentUserId}
+                onReview={isAdmin ? setReviewingSubmission : undefined}
+                onDelete={handleDelete}
+                tags={submission.tags}
+              />
+            </div>
           ))}
         </div>
       )}
@@ -516,6 +602,18 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
           }}
           currentUserId={currentUserId}
           currentUserName={currentUserName}
+        />
+      )}
+
+      {showBulkModal && (
+        <BulkApproveModal
+          selectedIds={Array.from(selectedIds)}
+          onClose={() => setShowBulkModal(false)}
+          onComplete={() => {
+            setShowBulkModal(false)
+            setSelectedIds(new Set())
+            fetchSubmissions()
+          }}
         />
       )}
     </>

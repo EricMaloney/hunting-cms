@@ -74,6 +74,7 @@ export interface Submission {
   user?: Pick<User, 'id' | 'email' | 'name' | 'image'>
   reviewer?: Pick<User, 'id' | 'email' | 'name'>
   devices?: Device[]
+  tags?: Tag[]
 }
 
 // ============================================================
@@ -131,6 +132,56 @@ export interface SubmissionStatusHistory {
   created_at: string
   // Joined
   changed_by?: Pick<User, 'id' | 'email' | 'name'>
+}
+
+// ============================================================
+// Tag
+// ============================================================
+export interface Tag {
+  id: string
+  name: string
+  color: string
+  created_at: string
+}
+
+// ============================================================
+// Notification
+// ============================================================
+export interface Notification {
+  id: string
+  user_id: string
+  type: string
+  title: string
+  message: string
+  submission_id: string | null
+  read_at: string | null
+  created_at: string
+}
+
+// ============================================================
+// Community Upload (employee photo submissions)
+// ============================================================
+export interface CommunityUpload {
+  id: string
+  submitter_name: string
+  caption: string | null
+  file_url: string
+  file_name: string
+  file_size_bytes: number | null
+  content_type: 'image' | 'video'
+  created_at: string
+  is_active: boolean
+}
+
+// Legacy alias — remove once all references migrated
+export type CommunityAsset = CommunityUpload
+
+// ============================================================
+// Bulk Approve
+// ============================================================
+export interface BulkApproveResult {
+  approved: number
+  errors: { id: string; error: string }[]
 }
 
 // ============================================================

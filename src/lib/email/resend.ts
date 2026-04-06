@@ -468,6 +468,93 @@ function buildDesignRequestHtml(payload: DesignRequestPayload): string {
 }
 
 // ============================================================
+// Email: Publish Failure Notification (to admin)
+// ============================================================
+export async function sendPublishFailureEmail(
+  submission: Submission,
+  deviceName: string,
+  errorMessage: string
+): Promise<void> {
+  const html = emailWrapper(`
+    <h2 style="color:#dc2626;margin:0 0 16px">⚠️ Publish Failed</h2>
+    <p style="margin:0 0 12px">A submission failed to publish to a display device.</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+      <tr><td style="padding:8px;background:#f9fafb;font-weight:600;width:140px">Submission</td><td style="padding:8px">${submission.title}</td></tr>
+      <tr><td style="padding:8px;background:#f9fafb;font-weight:600">Device</td><td style="padding:8px">${deviceName}</td></tr>
+      <tr><td style="padding:8px;background:#f9fafb;font-weight:600">Error</td><td style="padding:8px;color:#dc2626">${errorMessage}</td></tr>
+    </table>
+    <a href="${process.env.NEXTAUTH_URL}/dashboard/admin" style="display:inline-block;background:#1a1a2e;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">Go to Review Queue</a>
+  `)
+
+  await getTransporter().sendMail({
+    from: FROM,
+    to: ADMIN_EMAIL,
+    subject: `⚠️ Publish failed: ${submission.title}`,
+    html,
+  })
+}
+
+// ============================================================
+// Email: Weekly Digest (to admin)
+// ============================================================
+interface DigestData {
+  liveThisWeek: Submission[]
+  pendingCount: number
+  expiringCount: number
+  newUsersCount: number
+}
+
+export async function sendWeeklyDigestEmail(data: DigestData): Promise<void> {
+  const { liveThisWeek, pendingCount, expiringCount, newUsersCount } = data
+
+  const liveRows = liveThisWeek.length === 0
+    ? '<p style="color:#6b7280;font-style:italic">None this week.</p>'
+    : liveThisWeek.map(s => `<li style="margin-bottom:4px">${s.title}</li>`).join('')
+
+  const html = emailWrapper(`
+    <h2 style="margin:0 0 4px">Weekly Content Summary</h2>
+    <p style="color:#6b7280;margin:0 0 24px">${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:700;color:#16a34a">${liveThisWeek.length}</div>
+        <div style="font-size:12px;color:#16a34a;font-weight:600">Went Live</div>
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:700;color:#d97706">${pendingCount}</div>
+        <div style="font-size:12px;color:#d97706;font-weight:600">Pending Review</div>
+      </div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:700;color:#ea580c">${expiringCount}</div>
+        <div style="font-size:12px;color:#ea580c;font-weight:600">Expiring This Week</div>
+      </div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:700;color:#2563eb">${newUsersCount}</div>
+        <div style="font-size:12px;color:#2563eb;font-weight:600">New Users</div>
+      </div>
+    </div>
+
+    <h3 style="margin:0 0 8px;color:#1a1a2e">Content Live This Week</h3>
+    ${liveThisWeek.length > 0 ? `<ul style="margin:0 0 24px;padding-left:20px">${liveRows}</ul>` : liveRows}
+
+    ${pendingCount > 0 ? `
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:16px">
+      <strong>${pendingCount} submission${pendingCount !== 1 ? 's' : ''} awaiting your review.</strong>
+      <br/><a href="${process.env.NEXTAUTH_URL}/dashboard/admin" style="color:#d97706">Review now →</a>
+    </div>` : ''}
+
+    <a href="${process.env.NEXTAUTH_URL}/dashboard" style="display:inline-block;background:#1a1a2e;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">Open Dashboard</a>
+  `)
+
+  await getTransporter().sendMail({
+    from: FROM,
+    to: ADMIN_EMAIL,
+    subject: `📊 Weekly Content Summary — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+    html,
+  })
+}
+
+// ============================================================
 // Email: Comment Notification
 // ============================================================
 export async function sendCommentNotificationEmail(

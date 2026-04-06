@@ -3,9 +3,11 @@
 import { signOut } from 'next-auth/react'
 import Image from 'next/image'
 import type { UserRole } from '@/types'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 interface HeaderProps {
   user: {
+    id: string
     name: string | null
     email: string
     image: string | null
@@ -61,6 +63,8 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
 
       {/* Right side — user info */}
       <div className="flex items-center gap-2 sm:gap-3">
+        <NotificationBell userId={user.id} />
+
         {/* Name + email — hidden on mobile */}
         <div className="hidden sm:block text-right">
           <p className="text-sm font-medium text-gray-900">{user.name || 'User'}</p>

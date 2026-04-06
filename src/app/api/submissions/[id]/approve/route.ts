@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { sendApprovedEmail } from '@/lib/email/resend'
+import { sendApprovedEmail, sendPublishFailureEmail } from '@/lib/email/resend'
 import { publishToUnifi } from '@/lib/unifi/publisher'
 import { getOrCreatePresentation, addImageSlide, getPresentationUrl } from '@/lib/google/slides'
+import { createNotification } from '@/lib/notifications/create-notification'
 import type { ApiResponse, Submission } from '@/types'
 
 interface RouteParams {
@@ -96,6 +97,17 @@ export async function POST(
       note: null,
     })
 
+    // In-app notification for submitter
+    if (submission.user_id) {
+      await createNotification(
+        submission.user_id,
+        'approved',
+        'Submission Approved',
+        `"${submission.title}" has been approved and will go live soon.`,
+        params.id
+      )
+    }
+
     // Send approval email to submitter (non-blocking)
     if (submission.user) {
       sendApprovedEmail(updated as Submission, {
@@ -137,7 +149,21 @@ export async function POST(
                 unifi_publish_error: result.error || null,
               })
               .eq('id', params.id)
-              .then(() => { /* status logged */ })
+              .select()
+              .single()
+              .then(({ data: updated }) => {
+                if (!result.success && updated) {
+                  // Notify admin of publish failure
+                  const failedDevice = devices?.find((d) => d.platform === 'unifi')
+                  if (failedDevice) {
+                    sendPublishFailureEmail(
+                      updated as Submission,
+                      failedDevice.name,
+                      result.error || 'Unknown error'
+                    ).catch((e) => console.error('[Approve] Failed to send failure email:', e))
+                  }
+                }
+              })
           })
           .catch((e) => console.error('[Approve] UniFi publish error:', e))
       }

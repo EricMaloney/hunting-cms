@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sendCommentNotificationEmail } from '@/lib/email/resend'
+import { createNotification } from '@/lib/notifications/create-notification'
 import { z } from 'zod'
 import type { ApiResponse } from '@/types'
 
@@ -134,6 +135,17 @@ export async function POST(
     if (insertError) {
       console.error('Error inserting comment:', insertError)
       return NextResponse.json({ error: insertError.message }, { status: 500 })
+    }
+
+    // Notify submission owner if commenter is different
+    if (submission.user_id && submission.user_id !== session.user.id) {
+      await createNotification(
+        submission.user_id,
+        'comment',
+        'New Comment on Your Submission',
+        `${session.user.name || session.user.email} commented on "${submission.title}".`,
+        params.id
+      )
     }
 
     // Send email notification

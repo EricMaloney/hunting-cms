@@ -6,7 +6,9 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useDropzone } from 'react-dropzone'
-import type { Device, ValidationResult } from '@/types'
+import type { Device, ValidationResult, Tag, CommunityUpload } from '@/types'
+import { TagPicker } from './TagPicker'
+import { LibraryPicker } from './LibraryPicker'
 import {
   readImageDimensions,
   readVideoDuration,
@@ -54,6 +56,10 @@ export function SubmissionForm() {
 
   const [devices, setDevices] = useState<Device[]>([])
   const [devicesLoading, setDevicesLoading] = useState(true)
+  const [tags, setTags] = useState<Tag[]>([])
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [libraryAsset, setLibraryAsset] = useState<CommunityUpload | null>(null)
+  const [fileSource, setFileSource] = useState<'upload' | 'library'>('upload')
   const [fileState, setFileState] = useState<FileState | null>(null)
   const [validation, setValidation] = useState<ValidationResult | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -130,6 +136,14 @@ export function SubmissionForm() {
       .catch(() => { /* silent */ })
   }, [resubmitId, setValue])
 
+  // Fetch tags
+  useEffect(() => {
+    fetch('/api/tags')
+      .then((r) => r.json())
+      .then((json) => setTags(json.data || []))
+      .catch(() => {})
+  }, [])
+
   // Re-validate when devices selection changes
   useEffect(() => {
     if (!fileState || selectedDevices.length === 0) {
@@ -194,8 +208,12 @@ export function SubmissionForm() {
   })
 
   const onSubmit = async (values: FormValues) => {
-    if (!fileState) {
+    if (fileSource === 'upload' && !fileState) {
       setSubmitError('Please select a file to upload')
+      return
+    }
+    if (fileSource === 'library' && !libraryAsset) {
+      setSubmitError('Please select a file from the library')
       return
     }
 
@@ -203,46 +221,69 @@ export function SubmissionForm() {
     setUploading(true)
 
     try {
-      // Step 1: Upload the file
-      const formData = new FormData()
-      formData.append('file', fileState.file)
+      let submissionPayload: Record<string, unknown>
 
-      const uploadRes = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      const uploadJson = await uploadRes.json()
+      if (fileSource === 'library' && libraryAsset) {
+        // Library asset path — use Supabase file URL directly
+        submissionPayload = {
+          title: values.title,
+          description: values.description || undefined,
+          content_type: libraryAsset.content_type,
+          file_url: libraryAsset.file_url,
+          file_name: libraryAsset.file_name,
+          file_size_bytes: libraryAsset.file_size_bytes || undefined,
+          file_type: libraryAsset.content_type,
+          target_devices: values.target_devices,
+          schedule_start: values.schedule_start
+            ? new Date(values.schedule_start).toISOString()
+            : undefined,
+          schedule_end: values.schedule_end
+            ? new Date(values.schedule_end).toISOString()
+            : undefined,
+          reviewer_notes: values.reviewer_notes || undefined,
+        }
+      } else {
+        // Step 1: Upload the file
+        const formData = new FormData()
+        formData.append('file', fileState!.file)
 
-      if (!uploadRes.ok) {
-        setSubmitError(uploadJson.error || 'Upload failed')
-        setUploading(false)
-        return
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+        const uploadJson = await uploadRes.json()
+
+        if (!uploadRes.ok) {
+          setSubmitError(uploadJson.error || 'Upload failed')
+          setUploading(false)
+          return
+        }
+
+        const { url, name, size, type } = uploadJson.data
+
+        submissionPayload = {
+          title: values.title,
+          description: values.description || undefined,
+          content_type: fileState!.contentType,
+          file_url: url,
+          file_name: name,
+          file_size_bytes: size,
+          file_type: type,
+          width: fileState!.width,
+          height: fileState!.height,
+          duration_seconds: fileState!.duration ? Math.round(fileState!.duration) : undefined,
+          target_devices: values.target_devices,
+          schedule_start: values.schedule_start
+            ? new Date(values.schedule_start).toISOString()
+            : undefined,
+          schedule_end: values.schedule_end
+            ? new Date(values.schedule_end).toISOString()
+            : undefined,
+          reviewer_notes: values.reviewer_notes || undefined,
+        }
       }
-
-      const { url, name, size, type } = uploadJson.data
 
       // Step 2: Create the submission record
-      const submissionPayload = {
-        title: values.title,
-        description: values.description || undefined,
-        content_type: fileState.contentType,
-        file_url: url,
-        file_name: name,
-        file_size_bytes: size,
-        file_type: type,
-        width: fileState.width,
-        height: fileState.height,
-        duration_seconds: fileState.duration ? Math.round(fileState.duration) : undefined,
-        target_devices: values.target_devices,
-        schedule_start: values.schedule_start
-          ? new Date(values.schedule_start).toISOString()
-          : undefined,
-        schedule_end: values.schedule_end
-          ? new Date(values.schedule_end).toISOString()
-          : undefined,
-        reviewer_notes: values.reviewer_notes || undefined,
-      }
-
       const submitRes = await fetch('/api/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,16 +300,27 @@ export function SubmissionForm() {
         return
       }
 
+      const newSubmissionId = submitJson.data?.id
+
       // If this fulfills a design request, mark it as submitted
-      if (requestId && submitJson.data?.id) {
+      if (requestId && newSubmissionId) {
         fetch(`/api/design-requests/${requestId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             status: 'submitted',
-            submission_id: submitJson.data.id,
+            submission_id: newSubmissionId,
           }),
         }).catch(() => { /* non-blocking */ })
+      }
+
+      // Apply tags
+      if (selectedTagIds.length > 0 && newSubmissionId) {
+        await fetch(`/api/submissions/${newSubmissionId}/tags`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_ids: selectedTagIds }),
+        }).catch(console.error)
       }
 
       setSubmitSuccess(true)
@@ -367,6 +419,14 @@ export function SubmissionForm() {
               <p className="mt-1 text-xs text-red-500">{errors.description.message}</p>
             )}
           </div>
+
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+              <TagPicker tags={tags} selectedIds={selectedTagIds} onChange={setSelectedTagIds} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -376,7 +436,45 @@ export function SubmissionForm() {
           File Upload <span className="text-red-500">*</span>
         </h2>
 
-        {!fileState ? (
+        {/* File source tabs */}
+        <div className="flex gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => { setFileSource('upload'); setLibraryAsset(null) }}
+            className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              fileSource === 'upload'
+                ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            Upload File
+          </button>
+          <button
+            type="button"
+            onClick={() => setFileSource('library')}
+            className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              fileSource === 'library'
+                ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            Use from Library
+          </button>
+        </div>
+
+        {fileSource === 'library' && (
+          <div className="mb-4">
+            <LibraryPicker
+              onSelect={(asset) => setLibraryAsset(asset)}
+              selectedId={libraryAsset?.id}
+            />
+            {libraryAsset && (
+              <p className="text-xs text-green-600 mt-2 font-medium">✓ Selected: {libraryAsset.file_name}</p>
+            )}
+          </div>
+        )}
+
+        {fileSource === 'upload' && !fileState ? (
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
@@ -414,7 +512,7 @@ export function SubmissionForm() {
               </>
             )}
           </div>
-        ) : (
+        ) : fileSource === 'upload' && fileState ? (
           <div className="space-y-3">
             {/* Preview */}
             <div className="relative rounded-xl overflow-hidden bg-gray-900">
@@ -499,7 +597,7 @@ export function SubmissionForm() {
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Target Devices */}
@@ -711,7 +809,7 @@ export function SubmissionForm() {
         </button>
         <button
           type="submit"
-          disabled={isLoading || !fileState}
+          disabled={isLoading || (fileSource === 'upload' ? !fileState : !libraryAsset)}
           className="flex items-center gap-2 px-6 py-2.5 bg-[#1a1a2e] text-white text-sm font-semibold rounded-lg hover:bg-[#16213e] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {isLoading ? (

@@ -44,7 +44,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse>> 
         `
         *,
         user:users!submissions_user_id_fkey(id, email, name, image),
-        reviewer:users!submissions_reviewed_by_fkey(id, email, name)
+        reviewer:users!submissions_reviewed_by_fkey(id, email, name),
+        submission_tags(tag_id, tags(*))
       `,
         { count: 'exact' }
       )

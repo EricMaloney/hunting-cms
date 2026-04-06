@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sendRejectedEmail } from '@/lib/email/resend'
+import { createNotification } from '@/lib/notifications/create-notification'
 import { z } from 'zod'
 import type { ApiResponse, Submission } from '@/types'
 
@@ -106,6 +107,17 @@ export async function POST(
       changed_by_user_id: session.user.id,
       note: feedback,
     })
+
+    // In-app notification for submitter
+    if (submission.user_id) {
+      await createNotification(
+        submission.user_id,
+        'rejected',
+        'Submission Rejected',
+        `"${submission.title}" was not approved. Feedback: ${feedback.substring(0, 100)}${feedback.length > 100 ? '...' : ''}`,
+        params.id
+      )
+    }
 
     // Send rejection email to submitter (non-blocking)
     if (submission.user) {

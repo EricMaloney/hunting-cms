@@ -6,6 +6,7 @@ import { Header } from './Header'
 import type { UserRole } from '@/types'
 
 interface ShellUser {
+  id: string
   name: string | null
   email: string
   image: string | null
