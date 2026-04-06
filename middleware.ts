@@ -38,8 +38,8 @@ export default withAuth(
 
         // Allow public routes without auth
         if (pathname === '/login') return true
-        if (pathname === '/community') return true
-        if (pathname === '/api/community-uploads' && req.method === 'POST') return true
+        if (pathname.startsWith('/community')) return true          // public photo submission form
+        if (pathname.startsWith('/api/community-uploads')) return true  // auth enforced in route handler
 
         // All other routes require auth
         return !!token
