@@ -9,7 +9,7 @@
  */
 
 import { google } from 'googleapis'
-import { Readable } from 'stream'
+import { PassThrough } from 'stream'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 function createDriveClient(refreshToken: string) {
@@ -61,8 +61,10 @@ export async function uploadToCommunityDrive(
 
     const drive = createDriveClient(refreshToken)
 
-    // Upload the file
-    const stream = Readable.from(buffer)
+    // Build a proper readable stream from the buffer
+    const stream = new PassThrough()
+    stream.end(buffer)
+
     const res = await drive.files.create({
       requestBody: {
         name: fileName,

@@ -19,7 +19,7 @@ export const authOptions: NextAuthOptions = {
             'email',
             'profile',
             'https://www.googleapis.com/auth/presentations',
-            'https://www.googleapis.com/auth/drive.file',
+            'https://www.googleapis.com/auth/drive',
           ].join(' '),
         },
       },
