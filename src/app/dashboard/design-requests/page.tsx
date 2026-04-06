@@ -35,6 +35,7 @@ export default async function DesignRequestsPage() {
       <DesignRequestQueue
         currentUserId={session.user.id}
         currentUserName={session.user.name}
+        isAdmin={session.user.role === 'admin'}
       />
     </div>
   )

@@ -12,7 +12,7 @@ export async function GET(): Promise<NextResponse<ApiResponse>> {
   }
 
   try {
-    const { data, error } = await supabaseAdmin
+    const { data: users, error } = await supabaseAdmin
       .from('users')
       .select('id, email, name, image, role, created_at, last_login')
       .order('created_at', { ascending: true })
@@ -20,6 +20,29 @@ export async function GET(): Promise<NextResponse<ApiResponse>> {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    if (!users || users.length === 0) {
+      return NextResponse.json({ data: [] })
+    }
+
+    // Fetch submission counts per user
+    const userIds = users.map((u) => u.id)
+    const { data: submissionRows } = await supabaseAdmin
+      .from('submissions')
+      .select('user_id')
+      .in('user_id', userIds)
+
+    const countMap: Record<string, number> = {}
+    for (const row of submissionRows || []) {
+      if (row.user_id) {
+        countMap[row.user_id] = (countMap[row.user_id] || 0) + 1
+      }
+    }
+
+    const data = users.map((u) => ({
+      ...u,
+      submission_count: countMap[u.id] || 0,
+    }))
 
     return NextResponse.json({ data })
   } catch (err) {

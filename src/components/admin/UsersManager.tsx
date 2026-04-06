@@ -5,7 +5,9 @@ import Image from 'next/image'
 import { formatDistanceToNow, format } from 'date-fns'
 import type { User, UserRole } from '@/types'
 
-interface ManagedUser extends Pick<User, 'id' | 'email' | 'name' | 'image' | 'role' | 'created_at' | 'last_login'> {}
+interface ManagedUser extends Pick<User, 'id' | 'email' | 'name' | 'image' | 'role' | 'created_at' | 'last_login'> {
+  submission_count: number
+}
 
 interface Props {
   currentUserId: string
@@ -202,6 +204,10 @@ export function UsersManager({ currentUserId }: Props) {
                           </span>
                         </span>
                       )}
+                      <span>
+                        <span className="text-gray-500 font-medium">{user.submission_count}</span>{' '}
+                        {user.submission_count === 1 ? 'submission' : 'submissions'}
+                      </span>
                     </div>
                   </div>
 

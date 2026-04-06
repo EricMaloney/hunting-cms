@@ -7,6 +7,7 @@ import type { DesignRequest, DesignRequestStatus } from '@/types'
 interface Props {
   currentUserId: string
   currentUserName: string | null
+  isAdmin: boolean
 }
 
 const STATUS_LABELS: Record<DesignRequestStatus, string> = {
@@ -55,12 +56,76 @@ function timeAgo(iso: string) {
 
 type FilterTab = DesignRequestStatus | 'all' | 'history'
 
-export function DesignRequestQueue({ currentUserId, currentUserName }: Props) {
+function AdminNoteEditor({
+  requestId,
+  currentNote,
+  onSave,
+  saving,
+}: {
+  requestId: string
+  currentNote: string
+  onSave: (note: string) => void
+  saving: boolean
+}) {
+  const [note, setNote] = useState(currentNote)
+  const [editing, setEditing] = useState(false)
+
+  // Sync if parent updates
+  useEffect(() => {
+    if (!editing) setNote(currentNote)
+  }, [currentNote, editing])
+
+  if (!editing) {
+    return (
+      <div className="flex items-start gap-2">
+        <div className="flex-1 text-xs text-gray-500 italic min-h-[24px]">
+          {note ? `"${note}"` : 'No admin note.'}
+        </div>
+        <button
+          onClick={() => setEditing(true)}
+          className="shrink-0 text-xs text-[#1a1a2e] underline"
+        >
+          {note ? 'Edit' : 'Add note'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={2}
+        placeholder="Internal note (not visible to requester)..."
+        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] resize-none"
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={() => { onSave(note); setEditing(false) }}
+          disabled={saving}
+          className="px-3 py-1 bg-[#1a1a2e] text-white text-xs rounded-lg disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save note'}
+        </button>
+        <button
+          onClick={() => { setNote(currentNote); setEditing(false) }}
+          className="px-3 py-1 text-xs text-gray-500"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export function DesignRequestQueue({ currentUserId, currentUserName, isAdmin }: Props) {
   const router = useRouter()
   const [requests, setRequests] = useState<DesignRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterTab>('all')
   const [claimingId, setClaimingId] = useState<string | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -101,6 +166,22 @@ export function DesignRequestQueue({ currentUserId, currentUserName }: Props) {
 
   const handleSubmitForApproval = (requestId: string) => {
     router.push(`/dashboard/submit?request_id=${requestId}`)
+  }
+
+  const handleAdminUpdate = async (requestId: string, updates: { status?: DesignRequestStatus; admin_note?: string }) => {
+    setUpdatingId(requestId)
+    try {
+      const res = await fetch(`/api/design-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (res.ok) {
+        await fetchRequests()
+      }
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   // History = completed states
@@ -283,6 +364,36 @@ export function DesignRequestQueue({ currentUserId, currentUserName }: Props) {
                     )}
                   </div>
                 </div>
+
+                {/* Admin controls */}
+                {isAdmin && (
+                  <div className="pt-3 border-t border-gray-100 space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Admin</p>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-xs text-gray-500">Status:</span>
+                      {(['new', 'in_progress', 'submitted', 'approved', 'rejected'] as DesignRequestStatus[]).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => handleAdminUpdate(req.id, { status: s })}
+                          disabled={updatingId === req.id || req.status === s}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${
+                            req.status === s
+                              ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                          }`}
+                        >
+                          {STATUS_LABELS[s]}
+                        </button>
+                      ))}
+                    </div>
+                    <AdminNoteEditor
+                      requestId={req.id}
+                      currentNote={req.admin_note ?? ''}
+                      onSave={(note) => handleAdminUpdate(req.id, { admin_note: note })}
+                      saving={updatingId === req.id}
+                    />
+                  </div>
+                )}
               </div>
             )
           })}

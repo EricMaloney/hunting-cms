@@ -193,6 +193,8 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
   const [bulkClearing, setBulkClearing] = useState(false)
   const [confirmBulkClear, setConfirmBulkClear] = useState(false)
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
   const fetchSubmissions = useCallback(async () => {
     setLoading(true)
@@ -225,7 +227,14 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
   useEffect(() => {
     setFilters(DEFAULT_FILTERS)
     setConfirmBulkClear(false)
+    setSearchQuery('')
+    setDebouncedSearch('')
   }, [activeTab])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const handleDelete = (id: string) => {
     setSubmissions((prev) => prev.filter((s) => s.id !== id))
@@ -283,6 +292,15 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
       list = list.filter((s) => new Date(s.created_at) <= to)
     }
 
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase()
+      list = list.filter(
+        (s) =>
+          s.title.toLowerCase().includes(q) ||
+          (s.description && s.description.toLowerCase().includes(q))
+      )
+    }
+
     // Apply sort (skip if already sorted above)
     if (filters.sort === 'date_asc') {
       list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -291,7 +309,7 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
     }
 
     return list
-  }, [submissions, filters, canSeeAll])
+  }, [submissions, filters, canSeeAll, debouncedSearch])
 
   const handleBulkClear = async () => {
     setBulkClearing(true)
@@ -314,6 +332,30 @@ export function SubmissionList({ isAdmin, isLead = false, currentUserId, current
 
   return (
     <>
+      {/* Search */}
+      <div className="relative mb-4">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by title or description..."
+          className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] focus:border-transparent bg-white"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => { setSearchQuery(''); setDebouncedSearch('') }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
       {/* Status tabs + bulk action */}
       <div className="flex items-center justify-between gap-4 mb-4 border-b border-gray-200">
         <div className="flex gap-1 overflow-x-auto">

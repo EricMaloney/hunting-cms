@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import Image from 'next/image'
-import type { Submission, Device, ValidationResult } from '@/types'
+import type { Submission, Device, ValidationResult, SubmissionStatusHistory } from '@/types'
 import { StatusBadge } from '@/components/submissions/StatusBadge'
 import { validateFileForDevice, formatFileSize, parseResolution } from '@/lib/validation/media-validator'
 import { CommentThread } from '@/components/submissions/CommentThread'
@@ -28,6 +28,7 @@ export function ApprovalPanel({ submission, onClose, onComplete, onDelete, curre
   const [deviceValidations, setDeviceValidations] = useState<
     Record<string, ValidationResult>
   >({})
+  const [history, setHistory] = useState<SubmissionStatusHistory[]>([])
 
   // Fetch all devices (for targeting editor) and validate selected ones
   useEffect(() => {
@@ -57,6 +58,13 @@ export function ApprovalPanel({ submission, onClose, onComplete, onDelete, curre
       })
       .catch(console.error)
   }, [submission, selectedDeviceIds])
+
+  useEffect(() => {
+    fetch(`/api/submissions/${submission.id}/history`)
+      .then((r) => r.json())
+      .then((json) => setHistory(json.data || []))
+      .catch(() => {/* silent */})
+  }, [submission.id])
 
   const handleApprove = async () => {
     if (selectedDeviceIds.length === 0) {
@@ -385,6 +393,57 @@ export function ApprovalPanel({ submission, onClose, onComplete, onDelete, curre
                 currentUserId={currentUserId}
                 currentUserName={currentUserName ?? null}
               />
+            )}
+
+            {/* Status history */}
+            {history.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  Status History
+                </p>
+                <div className="relative">
+                  {/* Vertical line */}
+                  <div className="absolute left-3 top-0 bottom-0 w-px bg-gray-200" />
+                  <div className="space-y-3">
+                    {history.map((entry) => {
+                      const statusColors: Record<string, string> = {
+                        approved: 'bg-green-500',
+                        rejected: 'bg-red-500',
+                        live: 'bg-blue-500',
+                        expired: 'bg-gray-400',
+                        pending: 'bg-amber-400',
+                      }
+                      const dot = statusColors[entry.new_status] || 'bg-gray-400'
+                      return (
+                        <div key={entry.id} className="flex gap-3 items-start pl-1">
+                          <div className={`w-5 h-5 rounded-full ${dot} shrink-0 flex items-center justify-center mt-0.5 ring-2 ring-white`} />
+                          <div className="flex-1 min-w-0 pb-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-semibold text-gray-900 capitalize">{entry.new_status}</span>
+                              {entry.old_status && (
+                                <span className="text-xs text-gray-400">← {entry.old_status}</span>
+                              )}
+                            </div>
+                            {entry.changed_by && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                by {entry.changed_by.name || entry.changed_by.email}
+                              </p>
+                            )}
+                            {entry.note && (
+                              <p className="text-xs text-gray-600 mt-1 italic bg-gray-50 rounded px-2 py-1">
+                                &ldquo;{entry.note}&rdquo;
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {format(new Date(entry.created_at), 'MMM d, yyyy · h:mm a')}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Device compatibility checks */}

@@ -87,6 +87,15 @@ export async function POST(
       },
     })
 
+    // Log to status history
+    await supabaseAdmin.from('submission_status_history').insert({
+      submission_id: params.id,
+      old_status: 'pending',
+      new_status: 'approved',
+      changed_by_user_id: session.user.id,
+      note: null,
+    })
+
     // Send approval email to submitter (non-blocking)
     if (submission.user) {
       sendApprovedEmail(updated as Submission, {

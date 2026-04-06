@@ -93,6 +93,7 @@ export interface DesignRequest {
   urgency: 'asap' | 'by_date' | 'flexible' | null
   audience: string[] | null
   reference_url: string | null
+  admin_note: string | null
   status: DesignRequestStatus
   claimed_by: string | null
   claimed_at: string | null
@@ -115,6 +116,21 @@ export interface AuditLog {
   details: Record<string, unknown> | null
   created_at: string
   user?: Pick<User, 'id' | 'email' | 'name'>
+}
+
+// ============================================================
+// Submission Status History
+// ============================================================
+export interface SubmissionStatusHistory {
+  id: string
+  submission_id: string
+  old_status: string | null
+  new_status: string
+  changed_by_user_id: string | null
+  note: string | null
+  created_at: string
+  // Joined
+  changed_by?: Pick<User, 'id' | 'email' | 'name'>
 }
 
 // ============================================================

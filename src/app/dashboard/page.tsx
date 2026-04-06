@@ -1,3 +1,4 @@
+import { WelcomeBanner } from '@/components/dashboard/WelcomeBanner'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
@@ -142,6 +143,7 @@ export default async function DashboardHomePage() {
 
   return (
     <div className="space-y-8">
+      <WelcomeBanner userName={firstName} submissionCount={rows.length} />
       {/* Greeting */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">

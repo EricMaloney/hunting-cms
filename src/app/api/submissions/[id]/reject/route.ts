@@ -98,6 +98,15 @@ export async function POST(
       },
     })
 
+    // Log to status history
+    await supabaseAdmin.from('submission_status_history').insert({
+      submission_id: params.id,
+      old_status: 'pending',
+      new_status: 'rejected',
+      changed_by_user_id: session.user.id,
+      note: feedback,
+    })
+
     // Send rejection email to submitter (non-blocking)
     if (submission.user) {
       sendRejectedEmail(
