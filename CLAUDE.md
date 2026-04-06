@@ -142,10 +142,10 @@ ALTER TABLE devices
 ---
 
 ## Future Work
+- [ ] **Mobile + tablet responsive pass** — current layout looks broken on small screens; needs full responsive audit (sidebar, cards, forms, approval panel, filters bar)
 - [ ] SMS notifications via Twilio
 - [ ] Usage stats / analytics dashboard
 - [ ] Content tagging / categories
-- [ ] Production deploy to Vercel (update NEXTAUTH_URL + Google OAuth redirect URI + add Vercel Cron for expiry)
 
 ---
 

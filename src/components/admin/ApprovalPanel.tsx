@@ -6,15 +6,18 @@ import Image from 'next/image'
 import type { Submission, Device, ValidationResult } from '@/types'
 import { StatusBadge } from '@/components/submissions/StatusBadge'
 import { validateFileForDevice, formatFileSize, parseResolution } from '@/lib/validation/media-validator'
+import { CommentThread } from '@/components/submissions/CommentThread'
 
 interface ApprovalPanelProps {
   submission: Submission
   onClose: () => void
   onComplete: () => void
   onDelete?: (id: string) => void
+  currentUserId?: string
+  currentUserName?: string | null
 }
 
-export function ApprovalPanel({ submission, onClose, onComplete, onDelete }: ApprovalPanelProps) {
+export function ApprovalPanel({ submission, onClose, onComplete, onDelete, currentUserId, currentUserName }: ApprovalPanelProps) {
   const [action, setAction] = useState<'approve' | 'reject' | 'delete' | null>(null)
   const [feedback, setFeedback] = useState('')
   const [loading, setLoading] = useState(false)
@@ -129,17 +132,22 @@ export function ApprovalPanel({ submission, onClose, onComplete, onDelete }: App
   const isVideo = submission.content_type === 'video'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-end">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Panel */}
-      <div className="relative w-full max-w-2xl h-full bg-white shadow-2xl flex flex-col overflow-hidden">
+      {/* Panel — bottom sheet on mobile, right drawer on desktop */}
+      <div className="relative w-full sm:max-w-2xl sm:h-full bg-white shadow-2xl flex flex-col overflow-hidden rounded-t-2xl sm:rounded-none max-h-[92dvh] sm:max-h-full">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div>
             <h2 className="font-semibold text-gray-900">
               {submission.status === 'pending' ? 'Review Submission' : 'Submission Details'}
@@ -158,33 +166,47 @@ export function ApprovalPanel({ submission, onClose, onComplete, onDelete }: App
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
-          {/* Preview */}
-          <div className="bg-gray-900">
-            {isImage ? (
-              <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
-                <Image
-                  src={submission.file_url}
-                  alt={submission.title}
-                  fill
-                  className="object-contain"
-                />
+          {/* Preview — mock TV/monitor frame */}
+          <div className="bg-gray-800 p-4">
+            <p className="text-xs text-gray-400 font-medium mb-2 uppercase tracking-wider">Preview</p>
+            {/* Outer bezel */}
+            <div className="rounded-xl overflow-hidden shadow-xl ring-4 ring-gray-700 ring-offset-2 ring-offset-gray-800 bg-black">
+              {/* 16:9 content area */}
+              <div className="relative w-full" style={{ aspectRatio: '16/9', background: '#111' }}>
+                {isImage ? (
+                  <Image
+                    src={submission.file_url}
+                    alt={submission.title}
+                    fill
+                    className="object-contain"
+                  />
+                ) : isVideo ? (
+                  <video
+                    src={submission.file_url}
+                    controls
+                    className="absolute inset-0 w-full h-full"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
+                    Preview not available
+                  </div>
+                )}
               </div>
-            ) : isVideo ? (
-              <video
-                src={submission.file_url}
-                controls
-                className="w-full"
-                style={{ maxHeight: '300px' }}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-32 text-gray-400">
-                Preview not available
-              </div>
+            </div>
+            {/* Resolution label */}
+            {submission.width && submission.height && (
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                {submission.width}×{submission.height}
+                {' · '}
+                {Math.abs(submission.width / submission.height - 16/9) < 0.05
+                  ? '16:9'
+                  : `${(submission.width / submission.height).toFixed(2)}:1`}
+              </p>
             )}
           </div>
 
           {/* Details */}
-          <div className="p-6 space-y-6">
+          <div className="p-4 sm:p-6 space-y-6">
             {/* Status + meta */}
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -224,7 +246,7 @@ export function ApprovalPanel({ submission, onClose, onComplete, onDelete }: App
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                 File Details
               </p>
-              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Filename</span>
                   <span className="text-gray-900 font-medium truncate ml-2 max-w-40">
@@ -356,6 +378,15 @@ export function ApprovalPanel({ submission, onClose, onComplete, onDelete }: App
               </div>
             )}
 
+            {/* Comment thread */}
+            {currentUserId && (
+              <CommentThread
+                submissionId={submission.id}
+                currentUserId={currentUserId}
+                currentUserName={currentUserName ?? null}
+              />
+            )}
+
             {/* Device compatibility checks */}
             {devices.length > 0 && (
               <div>
@@ -462,7 +493,7 @@ export function ApprovalPanel({ submission, onClose, onComplete, onDelete }: App
         </div>
 
         {/* Action panel - fixed at bottom */}
-        <div className="border-t border-gray-200 p-6 shrink-0 bg-white space-y-4">
+        <div className="border-t border-gray-200 p-4 sm:p-6 shrink-0 bg-white space-y-4">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {error}

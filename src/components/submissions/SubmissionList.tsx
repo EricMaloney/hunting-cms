@@ -9,6 +9,9 @@ import { ApprovalPanel } from '@/components/admin/ApprovalPanel'
 interface SubmissionListProps {
   userId?: string
   isAdmin: boolean
+  isLead?: boolean
+  currentUserId?: string
+  currentUserName?: string | null
 }
 
 const STATUS_TABS: { label: string; value: SubmissionStatus | 'all' }[] = [
@@ -95,7 +98,7 @@ function FiltersBar({
 
       {open && (
         <div className="mt-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm space-y-4">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* User filter */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Submitted by</label>
@@ -180,7 +183,8 @@ function FiltersBar({
   )
 }
 
-export function SubmissionList({ isAdmin }: SubmissionListProps) {
+export function SubmissionList({ isAdmin, isLead = false, currentUserId, currentUserName }: SubmissionListProps) {
+  const canSeeAll = isAdmin || isLead
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -232,9 +236,9 @@ export function SubmissionList({ isAdmin }: SubmissionListProps) {
     fetchSubmissions()
   }
 
-  // Unique submitters extracted from current result set (admin only)
+  // Unique submitters extracted from current result set (admin/lead)
   const submitters = useMemo(() => {
-    if (!isAdmin) return []
+    if (!canSeeAll) return []
     const seen = new Map<string, { id: string; name: string | null; email: string }>()
     for (const s of submissions) {
       if (s.user && !seen.has(s.user.id)) {
@@ -244,14 +248,14 @@ export function SubmissionList({ isAdmin }: SubmissionListProps) {
     return Array.from(seen.values()).sort((a, b) =>
       (a.name || a.email).localeCompare(b.name || b.email)
     )
-  }, [submissions, isAdmin])
+  }, [submissions, canSeeAll])
 
   // Apply filters + sort
   const filteredSubmissions = useMemo(() => {
     let list = [...submissions]
 
     // Status sort (pending first) when no custom sort
-    if (isAdmin && filters.sort === 'date_desc') {
+    if (canSeeAll && filters.sort === 'date_desc') {
       list.sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1
         if (b.status === 'pending' && a.status !== 'pending') return 1
@@ -287,7 +291,7 @@ export function SubmissionList({ isAdmin }: SubmissionListProps) {
     }
 
     return list
-  }, [submissions, filters, isAdmin])
+  }, [submissions, filters, canSeeAll])
 
   const handleBulkClear = async () => {
     setBulkClearing(true)
@@ -374,8 +378,8 @@ export function SubmissionList({ isAdmin }: SubmissionListProps) {
         )}
       </div>
 
-      {/* Admin filter bar */}
-      {isAdmin && !loading && submissions.length > 0 && (
+      {/* Filter bar for admin + lead */}
+      {canSeeAll && !loading && submissions.length > 0 && (
         <FiltersBar
           filters={filters}
           onChange={setFilters}
@@ -449,6 +453,8 @@ export function SubmissionList({ isAdmin }: SubmissionListProps) {
               key={submission.id}
               submission={submission}
               isAdmin={isAdmin}
+              isLead={isLead}
+              currentUserId={currentUserId}
               onReview={isAdmin ? setReviewingSubmission : undefined}
               onDelete={handleDelete}
             />
@@ -466,6 +472,8 @@ export function SubmissionList({ isAdmin }: SubmissionListProps) {
             handleDelete(id)
             setReviewingSubmission(null)
           }}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
         />
       )}
     </>

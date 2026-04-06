@@ -50,6 +50,7 @@ export function SubmissionForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const requestId = searchParams.get('request_id')
+  const resubmitId = searchParams.get('resubmit_id')
 
   const [devices, setDevices] = useState<Device[]>([])
   const [devicesLoading, setDevicesLoading] = useState(true)
@@ -59,6 +60,7 @@ export function SubmissionForm() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [designRequest, setDesignRequest] = useState<{ name: string; message: string } | null>(null)
+  const [resubmitData, setResubmitData] = useState<{ title: string; admin_feedback: string | null } | null>(null)
 
   const [hasEndDate, setHasEndDate] = useState(false)
 
@@ -103,6 +105,30 @@ export function SubmissionForm() {
       })
       .catch(() => { /* silent */ })
   }, [requestId, setValue])
+
+  // If resubmitting, load original submission details
+  useEffect(() => {
+    if (!resubmitId) return
+    fetch(`/api/submissions/${resubmitId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const sub = json.data
+        if (!sub) return
+        setResubmitData({ title: sub.title, admin_feedback: sub.admin_feedback })
+        setValue('title', sub.title || '')
+        setValue('description', sub.description || '')
+        setValue('reviewer_notes', sub.reviewer_notes || '')
+        if (sub.target_devices) setValue('target_devices', sub.target_devices)
+        if (sub.schedule_start) {
+          setValue('schedule_start', sub.schedule_start.slice(0, 16))
+        }
+        if (sub.schedule_end) {
+          setHasEndDate(true)
+          setValue('schedule_end', sub.schedule_end.slice(0, 16))
+        }
+      })
+      .catch(() => { /* silent */ })
+  }, [resubmitId, setValue])
 
   // Re-validate when devices selection changes
   useEffect(() => {
@@ -275,6 +301,28 @@ export function SubmissionForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-6">
+      {/* Resubmit context banner */}
+      {resubmitData && (
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+            <svg className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-blue-800">
+                Resubmitting: {resubmitData.title} — previous feedback shown below
+              </p>
+            </div>
+          </div>
+          {resubmitData.admin_feedback && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">Previous feedback</p>
+              <p className="text-sm text-amber-800">{resubmitData.admin_feedback}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Design request context banner */}
       {designRequest && (
         <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">

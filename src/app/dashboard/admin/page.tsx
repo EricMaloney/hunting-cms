@@ -7,7 +7,8 @@ import { SubmissionList } from '@/components/submissions/SubmissionList'
 export default async function AdminPage() {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user || session.user.role !== 'admin') {
+  const role = session?.user?.role
+  if (!role || (role !== 'admin' && role !== 'lead')) {
     redirect('/dashboard')
   }
 
@@ -27,12 +28,18 @@ export default async function AdminPage() {
     { label: 'Expired', value: stats.expired || 0, color: 'text-gray-500 bg-gray-50 border-gray-200' },
   ]
 
+  const isAdmin = role === 'admin'
+
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Content Review</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {isAdmin ? 'Content Review' : 'All Submissions'}
+        </h1>
         <p className="text-gray-500 mt-1">
-          Review and approve or reject submitted content before it goes live on display screens.
+          {isAdmin
+            ? 'Review and approve or reject submitted content before it goes live on display screens.'
+            : 'Browse all submitted content across the team.'}
         </p>
       </div>
 
@@ -46,7 +53,12 @@ export default async function AdminPage() {
         ))}
       </div>
 
-      <SubmissionList isAdmin={true} />
+      <SubmissionList
+        isAdmin={isAdmin}
+        isLead={role === 'lead'}
+        currentUserId={session?.user?.id}
+        currentUserName={session?.user?.name ?? null}
+      />
     </div>
   )
 }

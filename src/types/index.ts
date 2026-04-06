@@ -4,7 +4,7 @@
 
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected' | 'live' | 'expired'
 export type DevicePlatform = 'unifi' | 'google_slides' | 'other'
-export type UserRole = 'user' | 'admin'
+export type UserRole = 'user' | 'lead' | 'admin'
 export type ContentType = 'image' | 'video' | 'audio'
 
 // ============================================================
@@ -89,6 +89,10 @@ export interface DesignRequest {
   message: string
   go_live_date: string | null
   end_date: string | null
+  content_category: string | null
+  urgency: 'asap' | 'by_date' | 'flexible' | null
+  audience: string[] | null
+  reference_url: string | null
   status: DesignRequestStatus
   claimed_by: string | null
   claimed_at: string | null

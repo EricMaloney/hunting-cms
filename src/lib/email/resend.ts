@@ -114,6 +114,10 @@ export interface DesignRequestPayload {
   message: string
   go_live_date?: string | null
   end_date?: string | null
+  content_category?: string | null
+  urgency?: 'asap' | 'by_date' | 'flexible' | null
+  audience?: string[] | null
+  reference_url?: string | null
 }
 
 export async function sendDesignRequestEmail(payload: DesignRequestPayload) {
@@ -386,6 +390,11 @@ function buildRejectedHtml(
 }
 
 function buildDesignRequestHtml(payload: DesignRequestPayload): string {
+  const urgencyLabel = payload.urgency === 'asap' ? 'ASAP'
+    : payload.urgency === 'by_date' ? 'By go-live date'
+    : payload.urgency === 'flexible' ? 'Flexible'
+    : null
+
   return emailWrapper(`
     <h2 style="margin:0 0 8px;color:#1a1a2e;font-size:22px;">New Design Request</h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:15px;">Someone needs content created for the digital displays.</p>
@@ -408,6 +417,24 @@ function buildDesignRequestHtml(payload: DesignRequestPayload): string {
           <td style="padding:4px 0;color:#1a1a2e;font-size:13px;">${payload.phone}</td>
         </tr>
         ` : ''}
+        ${payload.content_category ? `
+        <tr>
+          <td style="padding:4px 0;color:#64748b;font-size:13px;">Category</td>
+          <td style="padding:4px 0;color:#1a1a2e;font-size:13px;">${payload.content_category}</td>
+        </tr>
+        ` : ''}
+        ${urgencyLabel ? `
+        <tr>
+          <td style="padding:4px 0;color:#64748b;font-size:13px;">Urgency</td>
+          <td style="padding:4px 0;color:#1a1a2e;font-size:13px;">${urgencyLabel}</td>
+        </tr>
+        ` : ''}
+        ${payload.audience && payload.audience.length > 0 ? `
+        <tr>
+          <td style="padding:4px 0;color:#64748b;font-size:13px;">Audience</td>
+          <td style="padding:4px 0;color:#1a1a2e;font-size:13px;">${payload.audience.join(', ')}</td>
+        </tr>
+        ` : ''}
         ${payload.go_live_date ? `
         <tr>
           <td style="padding:4px 0;color:#64748b;font-size:13px;">Desired go-live</td>
@@ -418,6 +445,12 @@ function buildDesignRequestHtml(payload: DesignRequestPayload): string {
         <tr>
           <td style="padding:4px 0;color:#64748b;font-size:13px;">End date</td>
           <td style="padding:4px 0;color:#1a1a2e;font-size:13px;">${new Date(payload.end_date).toLocaleDateString()}</td>
+        </tr>
+        ` : ''}
+        ${payload.reference_url ? `
+        <tr>
+          <td style="padding:4px 0;color:#64748b;font-size:13px;">Reference</td>
+          <td style="padding:4px 0;font-size:13px;"><a href="${payload.reference_url}" style="color:#1a1a2e;">View uploaded reference</a></td>
         </tr>
         ` : ''}
       </table>
@@ -432,4 +465,44 @@ function buildDesignRequestHtml(payload: DesignRequestPayload): string {
       View in CMS
     </a>
   `)
+}
+
+// ============================================================
+// Email: Comment Notification
+// ============================================================
+export async function sendCommentNotificationEmail(
+  submissionTitle: string,
+  commenterName: string,
+  commentMessage: string,
+  toEmail: string,
+  toName: string | null,
+  submissionId: string
+) {
+  const name = toName || toEmail.split('@')[0]
+  const html = emailWrapper(`
+    <h2 style="margin:0 0 8px;color:#1a1a2e;font-size:22px;">New comment on your submission</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;">Hi ${name}, ${commenterName} left a comment on <strong>${submissionTitle}</strong>.</p>
+
+    <div style="background-color:#f0f9ff;border-left:4px solid #0ea5e9;padding:16px 20px;margin-bottom:24px;border-radius:0 8px 8px 0;">
+      <p style="margin:0 0 4px;color:#0c4a6e;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">${commenterName}</p>
+      <p style="margin:0;color:#075985;font-size:14px;">${commentMessage}</p>
+    </div>
+
+    <a href="${APP_URL}/dashboard?submission=${submissionId}" style="display:inline-block;background-color:#1a1a2e;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;">
+      View Submission
+    </a>
+  `)
+
+  try {
+    await getTransporter().sendMail({
+      from: FROM,
+      to: toEmail,
+      subject: `New comment on "${submissionTitle}"`,
+      html,
+    })
+    return { success: true }
+  } catch (err) {
+    console.error('Error sending comment notification email:', err)
+    return { success: false, error: String(err) }
+  }
 }

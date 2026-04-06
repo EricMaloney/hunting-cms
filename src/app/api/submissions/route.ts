@@ -51,8 +51,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse>> 
       .order('created_at', { ascending: false })
       .range(offset, offset + perPage - 1)
 
-    // Non-admins only see their own submissions
-    if (session.user.role !== 'admin') {
+    // Only users with elevated roles see all submissions; regular users see only their own
+    if (session.user.role === 'user') {
       query = query.eq('user_id', session.user.id)
     }
 

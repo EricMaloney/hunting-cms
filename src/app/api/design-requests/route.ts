@@ -14,6 +14,10 @@ const createSchema = z
     message: z.string().min(1, 'Message is required').max(2000),
     go_live_date: z.string().optional().nullable(),
     end_date: z.string().optional().nullable(),
+    content_category: z.string().optional(),
+    urgency: z.enum(['asap', 'by_date', 'flexible']).optional(),
+    audience: z.array(z.string()).optional(),
+    reference_url: z.string().url().optional().nullable(),
   })
   .refine((d) => (d.email && d.email.length > 0) || (d.phone && d.phone.length > 0), {
     message: 'Provide at least an email address or phone number',
@@ -44,6 +48,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse>>
         message: d.message,
         go_live_date: d.go_live_date || null,
         end_date: d.end_date || null,
+        content_category: d.content_category || null,
+        urgency: d.urgency || null,
+        audience: d.audience || null,
+        reference_url: d.reference_url || null,
         status: 'new',
       })
       .select()
@@ -62,6 +70,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse>>
       message: d.message,
       go_live_date: d.go_live_date || null,
       end_date: d.end_date || null,
+      content_category: d.content_category || null,
+      urgency: d.urgency || null,
+      audience: d.audience || null,
+      reference_url: d.reference_url || null,
     }).catch((e) => console.error('Failed to send design request email:', e))
 
     return NextResponse.json(

@@ -12,13 +12,15 @@ interface Props {
 }
 
 function RoleBadge({ role }: { role: UserRole }) {
+  const styles = {
+    admin: 'bg-[#1a1a2e] text-white',
+    lead: 'bg-amber-100 text-amber-700',
+    user: 'bg-gray-100 text-gray-600',
+  }
+  const labels = { admin: 'Admin', lead: 'Lead', user: 'User' }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-      role === 'admin'
-        ? 'bg-[#1a1a2e] text-white'
-        : 'bg-gray-100 text-gray-600'
-    }`}>
-      {role === 'admin' ? 'Admin' : 'User'}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${styles[role]}`}>
+      {labels[role]}
     </span>
   )
 }
@@ -127,12 +129,13 @@ export function UsersManager({ currentUserId }: Props) {
   }
 
   const admins = users.filter((u) => u.role === 'admin')
+  const leads = users.filter((u) => u.role === 'lead')
   const standardUsers = users.filter((u) => u.role === 'user')
 
   return (
     <div className="space-y-8">
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
           <p className="text-2xl font-bold text-gray-900">{users.length}</p>
           <p className="text-xs text-gray-500 font-medium mt-0.5">Total Users</p>
@@ -140,6 +143,10 @@ export function UsersManager({ currentUserId }: Props) {
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
           <p className="text-2xl font-bold text-[#1a1a2e]">{admins.length}</p>
           <p className="text-xs text-gray-500 font-medium mt-0.5">Admins</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+          <p className="text-2xl font-bold text-amber-600">{leads.length}</p>
+          <p className="text-xs text-gray-500 font-medium mt-0.5">Leads</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
           <p className="text-2xl font-bold text-gray-600">{standardUsers.length}</p>
@@ -165,7 +172,7 @@ export function UsersManager({ currentUserId }: Props) {
 
             return (
               <div key={user.id} className="px-5 py-4">
-                <div className="flex items-center gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <UserAvatar user={user} />
 
                   {/* Info */}
@@ -200,7 +207,7 @@ export function UsersManager({ currentUserId }: Props) {
 
                   {/* Role action */}
                   {!isCurrentUser && (
-                    <div className="shrink-0 flex items-center gap-2">
+                    <div className="shrink-0 flex flex-wrap items-center gap-2 mt-1 sm:mt-0">
                       {thisFeedback && (
                         <span className={`text-xs font-medium ${thisFeedback.ok ? 'text-green-600' : 'text-red-600'}`}>
                           {thisFeedback.message}
@@ -208,9 +215,9 @@ export function UsersManager({ currentUserId }: Props) {
                       )}
 
                       {isConfirming ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs text-gray-600">
-                            Make {pendingRole === 'admin' ? 'admin' : 'standard user'}?
+                            Set role to <span className="font-semibold capitalize">{pendingRole}</span>?
                           </span>
                           <button
                             onClick={() => confirmRoleChange(user.id)}
@@ -231,18 +238,32 @@ export function UsersManager({ currentUserId }: Props) {
                           Updating...
                         </div>
                       ) : (
-                        <button
-                          onClick={() =>
-                            initiateRoleChange(user, user.role === 'admin' ? 'user' : 'admin')
-                          }
-                          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                            user.role === 'admin'
-                              ? 'text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                              : 'text-[#1a1a2e] border-[#1a1a2e]/30 hover:bg-[#1a1a2e]/5'
-                          }`}
-                        >
-                          {user.role === 'admin' ? 'Remove admin' : 'Make admin'}
-                        </button>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {user.role !== 'admin' && (
+                            <button
+                              onClick={() => initiateRoleChange(user, 'admin')}
+                              className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[#1a1a2e]/30 text-[#1a1a2e] hover:bg-[#1a1a2e]/5 transition-colors"
+                            >
+                              Make admin
+                            </button>
+                          )}
+                          {user.role !== 'lead' && (
+                            <button
+                              onClick={() => initiateRoleChange(user, 'lead')}
+                              className="px-2.5 py-1 text-xs font-medium rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors"
+                            >
+                              {user.role === 'admin' ? 'Demote to lead' : 'Make lead'}
+                            </button>
+                          )}
+                          {user.role !== 'user' && (
+                            <button
+                              onClick={() => initiateRoleChange(user, 'user')}
+                              className="px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
+                              Remove to user
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

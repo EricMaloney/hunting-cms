@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { format, formatDistanceToNow } from 'date-fns'
 import type { Submission } from '@/types'
 import { StatusBadge } from './StatusBadge'
@@ -10,11 +11,14 @@ import { formatFileSize } from '@/lib/validation/media-validator'
 interface SubmissionCardProps {
   submission: Submission
   isAdmin?: boolean
+  isLead?: boolean
+  currentUserId?: string
   onReview?: (submission: Submission) => void
   onDelete?: (id: string) => void
 }
 
-export function SubmissionCard({ submission, isAdmin, onReview, onDelete }: SubmissionCardProps) {
+export function SubmissionCard({ submission, isAdmin, isLead = false, currentUserId, onReview, onDelete }: SubmissionCardProps) {
+  const router = useRouter()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -58,7 +62,7 @@ export function SubmissionCard({ submission, isAdmin, onReview, onDelete }: Subm
     >
       <div className="flex gap-0">
         {/* Thumbnail */}
-        <div className="w-40 h-32 bg-gray-100 shrink-0 relative overflow-hidden">
+        <div className="w-24 h-24 sm:w-40 sm:h-32 bg-gray-100 shrink-0 relative overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-0">
             {isVideo ? (
               <div className="text-center">
@@ -141,7 +145,7 @@ export function SubmissionCard({ submission, isAdmin, onReview, onDelete }: Subm
             </div>
           )}
 
-          {isAdmin && submission.user && (
+          {(isAdmin || isLead) && submission.user && (
             <p className="text-sm text-gray-500 mb-1.5">
               by {submission.user.name || submission.user.email}
             </p>
@@ -195,11 +199,27 @@ export function SubmissionCard({ submission, isAdmin, onReview, onDelete }: Subm
             </div>
           )}
 
-          {/* Rejection feedback */}
+          {/* Rejection feedback + resubmit */}
           {submission.status === 'rejected' && submission.admin_feedback && (
-            <div className="mt-2 p-2 bg-red-50 border border-red-100 rounded text-xs text-red-700">
-              <span className="font-medium">Feedback: </span>
-              {submission.admin_feedback}
+            <div className="mt-2 space-y-2">
+              <div className="p-2 bg-red-50 border border-red-100 rounded text-xs text-red-700">
+                <span className="font-medium">Feedback: </span>
+                {submission.admin_feedback}
+              </div>
+              {currentUserId && submission.user_id === currentUserId && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    router.push(`/dashboard/submit?resubmit_id=${submission.id}`)
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                  Resubmit
+                </button>
+              )}
             </div>
           )}
 
@@ -209,6 +229,13 @@ export function SubmissionCard({ submission, isAdmin, onReview, onDelete }: Subm
               <span className="text-xs text-gray-400">
                 {submission.status === 'pending' ? 'Click to review' : 'Click to view details'}
               </span>
+            </div>
+          )}
+
+          {/* View-only hint for lead */}
+          {isLead && !isAdmin && (
+            <div className="mt-2">
+              <span className="text-xs text-amber-500 font-medium">View only</span>
             </div>
           )}
         </div>
