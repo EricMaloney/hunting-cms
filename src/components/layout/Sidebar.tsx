@@ -274,43 +274,60 @@ export function Sidebar({ userRole, isOpen = false, onClose }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {/* Home — unlabeled, sits above everything */}
+          <div className="mb-3">
+            <NavLink
+              item={visibleItems.find((i) => i.href === '/dashboard' && i.label === 'Home')!}
+              pathname={pathname}
+            />
+          </div>
+
+          {/* Content section */}
           <div className="px-3 mb-2">
             <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Content</p>
           </div>
+          <div className="space-y-1 mb-2">
+            {visibleItems
+              .filter((item) => !item.adminOnly && !item.elevatedOnly && item.label !== 'Home' && item.label !== 'Settings')
+              .map((item) => (
+                <NavLink key={item.label} item={item} pathname={pathname} />
+              ))}
+          </div>
 
-          {visibleItems
-            .filter((item) => !item.adminOnly && !item.elevatedOnly)
-            .map((item) => (
-              <NavLink key={item.label} item={item} pathname={pathname} />
-            ))}
-
+          {/* Admin / Lead section */}
           {isElevated && (
-            <>
-              <div className="px-3 mt-5 mb-2">
+            <div className="mt-4">
+              <div className="px-3 mb-2">
                 <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">
                   {isAdmin ? 'Admin' : 'Lead'}
                 </p>
               </div>
-              {visibleItems
-                .filter((item) => item.elevatedOnly || item.adminOnly)
-                .map((item) => (
-                  <NavLink
-                    key={item.label}
-                    item={{
-                      ...item,
-                      badge: item.href === '/dashboard/admin' && isAdmin && pendingCount > 0 ? pendingCount : undefined,
-                    }}
-                    pathname={pathname}
-                  />
-                ))}
-            </>
+              <div className="space-y-1">
+                {visibleItems
+                  .filter((item) => item.elevatedOnly || item.adminOnly)
+                  .map((item) => (
+                    <NavLink
+                      key={item.label}
+                      item={{
+                        ...item,
+                        badge: item.href === '/dashboard/admin' && isAdmin && pendingCount > 0 ? pendingCount : undefined,
+                      }}
+                      pathname={pathname}
+                    />
+                  ))}
+              </div>
+            </div>
           )}
         </nav>
 
-        {/* Version */}
-        <div className="px-6 py-4 border-t border-white/10">
-          <p className="text-slate-600 text-xs">v1.0.0</p>
+        {/* Settings + Version — pinned to bottom */}
+        <div className="px-3 pb-3 border-t border-white/10 pt-3">
+          <NavLink
+            item={visibleItems.find((i) => i.label === 'Settings')!}
+            pathname={pathname}
+          />
+          <p className="text-slate-600 text-xs px-3 mt-3">v1.0.0</p>
         </div>
       </aside>
     </>
