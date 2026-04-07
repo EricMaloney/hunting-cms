@@ -19,6 +19,7 @@ interface NavItem {
   badge?: number
   adminOnly?: boolean
   elevatedOnly?: boolean // visible to lead + admin
+  leadOnly?: boolean     // visible to lead only (not admin)
   external?: boolean
 }
 
@@ -168,7 +169,7 @@ const navItems: NavItem[] = [
     label: 'All Submissions',
     href: '/dashboard/admin',
     icon: <ClipboardIcon />,
-    elevatedOnly: true,
+    leadOnly: true,
   },
   {
     label: 'Review Queue',
@@ -241,7 +242,8 @@ export function Sidebar({ userRole, isOpen = false, onClose }: SidebarProps) {
   const isElevated = isAdmin || isLead
   const visibleItems = navItems.filter((item) => {
     if (item.adminOnly) return isAdmin
-    if (item.elevatedOnly) return isLead // lead-only, not admin (admin sees Review Queue instead)
+    if (item.leadOnly) return isLead          // lead only — keeps "All Submissions" off admin view
+    if (item.elevatedOnly) return isElevated  // lead + admin — Library, etc.
     return true
   })
 
@@ -309,7 +311,7 @@ export function Sidebar({ userRole, isOpen = false, onClose }: SidebarProps) {
           </div>
           <div className="space-y-1 mb-2">
             {visibleItems
-              .filter((item) => !item.adminOnly && !item.elevatedOnly && item.label !== 'Home' && item.label !== 'Settings')
+              .filter((item) => !item.adminOnly && !item.elevatedOnly && !item.leadOnly && item.label !== 'Home' && item.label !== 'Settings')
               .map((item) => (
                 <NavLink key={item.label} item={item} pathname={pathname} />
               ))}
@@ -325,7 +327,7 @@ export function Sidebar({ userRole, isOpen = false, onClose }: SidebarProps) {
               </div>
               <div className="space-y-1">
                 {visibleItems
-                  .filter((item) => item.elevatedOnly || item.adminOnly)
+                  .filter((item) => item.elevatedOnly || item.adminOnly || item.leadOnly)
                   .map((item) => (
                     <NavLink
                       key={item.label}
