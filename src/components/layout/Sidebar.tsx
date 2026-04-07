@@ -200,6 +200,12 @@ const navItems: NavItem[] = [
     icon: <PhotoIcon />,
     elevatedOnly: true,
   },
+  {
+    label: 'Submit a Photo',
+    href: '/community',
+    icon: <ExternalLinkIcon />,
+    external: true,
+  },
 ]
 
 export function Sidebar({ userRole, isOpen = false, onClose }: SidebarProps) {
