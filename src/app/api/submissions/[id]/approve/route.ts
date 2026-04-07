@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sendApprovedEmail, sendPublishFailureEmail } from '@/lib/email/resend'
-import { publishToUnifi } from '@/lib/unifi/publisher'
 import { getOrCreatePresentation, addImageSlide, getPresentationUrl } from '@/lib/google/slides'
 import { createNotification } from '@/lib/notifications/create-notification'
 import { notifySubmissionApproved } from '@/lib/notifications/google-chat'
@@ -125,11 +124,12 @@ export async function POST(
     }).catch((e) => console.error('Failed to send Chat approval notification:', e))
 
     // ============================================================
-    // UniFi Connect — Playwright Automation
+    // UniFi Connect — Queue for local worker
     // ============================================================
-    // Check if this submission targets any UniFi devices.
-    // If so, kick off the browser automation in the background (non-blocking).
-    // The result is logged but does not block the approval response.
+    // Playwright cannot run on Vercel (serverless). Instead, we insert
+    // a job into publish_queue. The local Mac worker (scripts/unifi-worker.ts)
+    // polls this table every 5 minutes and runs Playwright on the local network
+    // where it can reach the UniFi controller at 10.0.30.2.
     const targetDevices: string[] = targetDevicesOverride || submission.target_devices || []
 
     if (targetDevices.length > 0) {
@@ -141,39 +141,27 @@ export async function POST(
       const hasUnifi = devices?.some((d) => d.platform === 'unifi')
 
       if (hasUnifi && submission.file_url && submission.file_name) {
-        // Run non-blocking so the admin gets an instant response
-        publishToUnifi(
-          submission.file_url,
-          submission.file_name,
-          submission.content_type as 'image' | 'video' | 'audio'
-        )
-          .then((result) => {
-            console.log('[Approve] UniFi publish result:', result)
-            // Update submission with publish status
-            supabaseAdmin
-              .from('submissions')
-              .update({
-                unifi_publish_status: result.success ? 'published' : 'failed',
-                unifi_publish_error: result.error || null,
-              })
-              .eq('id', params.id)
-              .select()
-              .single()
-              .then(({ data: updated }) => {
-                if (!result.success && updated) {
-                  // Notify admin of publish failure
-                  const failedDevice = devices?.find((d) => d.platform === 'unifi')
-                  if (failedDevice) {
-                    sendPublishFailureEmail(
-                      updated as Submission,
-                      failedDevice.name,
-                      result.error || 'Unknown error'
-                    ).catch((e) => console.error('[Approve] Failed to send failure email:', e))
-                  }
-                }
-              })
+        const { error: queueError } = await supabaseAdmin
+          .from('publish_queue')
+          .insert({
+            submission_id: params.id,
+            title: submission.title,
+            file_url: submission.file_url,
+            file_name: submission.file_name,
+            content_type: submission.content_type,
+            duration_seconds: submission.duration_seconds || null,
+            status: 'pending',
           })
-          .catch((e) => console.error('[Approve] UniFi publish error:', e))
+
+        if (queueError) {
+          console.error('[Approve] Failed to queue UniFi publish job:', queueError.message)
+        } else {
+          console.log('[Approve] UniFi publish job queued — local worker will pick it up within 5 minutes')
+          await supabaseAdmin
+            .from('submissions')
+            .update({ unifi_publish_status: 'pending' })
+            .eq('id', params.id)
+        }
       }
     }
     // ============================================================
