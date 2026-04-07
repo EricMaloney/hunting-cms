@@ -117,8 +117,8 @@ export async function POST(
       }).catch((e) => console.error('Failed to send approval email:', e))
     }
 
-    // Google Chat alert (non-blocking)
-    notifySubmissionApproved({
+    // Google Chat alert — awaited so Vercel doesn't kill it before it fires
+    await notifySubmissionApproved({
       submitterName: submission.user?.name || submission.user?.email || 'Unknown',
       title: submission.title,
       reviewerName: session.user.name || session.user.email,

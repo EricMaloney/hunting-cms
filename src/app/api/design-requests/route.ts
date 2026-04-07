@@ -63,8 +63,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse>>
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Google Chat alert (non-blocking)
-    notifyNewDesignRequest({
+    // Google Chat alert — awaited so Vercel doesn't kill it before it fires
+    await notifyNewDesignRequest({
       requesterName: d.name,
       message: d.message,
       requestId: record.id,

@@ -129,8 +129,8 @@ export async function POST(
       ).catch((e) => console.error('Failed to send rejection email:', e))
     }
 
-    // Google Chat alert (non-blocking)
-    notifySubmissionRejected({
+    // Google Chat alert — awaited so Vercel doesn't kill it before it fires
+    await notifySubmissionRejected({
       submitterName: submission.user?.name || submission.user?.email || 'Unknown',
       title: submission.title,
       feedback,

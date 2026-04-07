@@ -169,8 +169,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse>>
       console.error('Failed to send admin review email:', e)
     )
 
-    // Google Chat alert (non-blocking)
-    notifyNewSubmission({
+    // Google Chat alert — awaited so Vercel doesn't kill it before it fires
+    await notifyNewSubmission({
       submitterName: session.user.name || session.user.email,
       title: submission.title,
       submissionId: submission.id,
