@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sendRejectedEmail } from '@/lib/email/resend'
 import { createNotification } from '@/lib/notifications/create-notification'
+import { notifySubmissionRejected } from '@/lib/notifications/google-chat'
 import { z } from 'zod'
 import type { ApiResponse, Submission } from '@/types'
 
@@ -127,6 +128,14 @@ export async function POST(
         feedback
       ).catch((e) => console.error('Failed to send rejection email:', e))
     }
+
+    // Google Chat alert (non-blocking)
+    notifySubmissionRejected({
+      submitterName: submission.user?.name || submission.user?.email || 'Unknown',
+      title: submission.title,
+      feedback,
+      reviewerName: session.user.name || session.user.email,
+    }).catch((e) => console.error('Failed to send Chat rejection notification:', e))
 
     return NextResponse.json({
       data: updated,

@@ -6,6 +6,7 @@ import { sendApprovedEmail, sendPublishFailureEmail } from '@/lib/email/resend'
 import { publishToUnifi } from '@/lib/unifi/publisher'
 import { getOrCreatePresentation, addImageSlide, getPresentationUrl } from '@/lib/google/slides'
 import { createNotification } from '@/lib/notifications/create-notification'
+import { notifySubmissionApproved } from '@/lib/notifications/google-chat'
 import type { ApiResponse, Submission } from '@/types'
 
 interface RouteParams {
@@ -115,6 +116,13 @@ export async function POST(
         name: submission.user.name,
       }).catch((e) => console.error('Failed to send approval email:', e))
     }
+
+    // Google Chat alert (non-blocking)
+    notifySubmissionApproved({
+      submitterName: submission.user?.name || submission.user?.email || 'Unknown',
+      title: submission.title,
+      reviewerName: session.user.name || session.user.email,
+    }).catch((e) => console.error('Failed to send Chat approval notification:', e))
 
     // ============================================================
     // UniFi Connect — Playwright Automation

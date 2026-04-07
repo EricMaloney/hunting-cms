@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sendDesignRequestEmail } from '@/lib/email/resend'
+import { notifyNewDesignRequest } from '@/lib/notifications/google-chat'
 import { z } from 'zod'
 import type { ApiResponse } from '@/types'
 
@@ -61,6 +62,14 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse>>
       console.error('Error creating design request:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Google Chat alert (non-blocking)
+    notifyNewDesignRequest({
+      requesterName: d.name,
+      message: d.message,
+      requestId: record.id,
+      urgency: d.urgency || null,
+    }).catch((e) => console.error('Failed to send Chat design request notification:', e))
 
     // Send notification to Eric + Heather (non-blocking)
     sendDesignRequestEmail({

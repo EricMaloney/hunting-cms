@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sendSubmissionReceivedEmail, sendAdminReviewEmail } from '@/lib/email/resend'
+import { notifyNewSubmission } from '@/lib/notifications/google-chat'
 import { z } from 'zod'
 import type { ApiResponse, Submission } from '@/types'
 
@@ -167,6 +168,14 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse>>
     sendAdminReviewEmail(submission as Submission, userInfo).catch((e) =>
       console.error('Failed to send admin review email:', e)
     )
+
+    // Google Chat alert (non-blocking)
+    notifyNewSubmission({
+      submitterName: session.user.name || session.user.email,
+      title: submission.title,
+      submissionId: submission.id,
+      contentType: submission.content_type,
+    }).catch((e) => console.error('Failed to send Chat notification:', e))
 
     return NextResponse.json(
       { data: submission, message: 'Submission created successfully' },
