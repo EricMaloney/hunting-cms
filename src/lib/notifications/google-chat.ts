@@ -5,15 +5,14 @@
  * All functions are fire-and-forget — failures are logged but never throw.
  */
 
-const WEBHOOK_URL = process.env.GOOGLE_CHAT_WEBHOOK_URL
-
 async function postToChat(payload: object): Promise<void> {
-  if (!WEBHOOK_URL) {
+  const webhookUrl = process.env.GOOGLE_CHAT_WEBHOOK_URL
+  if (!webhookUrl) {
     console.warn('[Chat] GOOGLE_CHAT_WEBHOOK_URL not set — skipping')
     return
   }
   try {
-    const res = await fetch(WEBHOOK_URL, {
+    const res = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -27,7 +26,6 @@ async function postToChat(payload: object): Promise<void> {
   }
 }
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://hunting-cms.vercel.app'
 
 // ── New submission pending review ─────────────────────────────────────────────
 export async function notifyNewSubmission(opts: {
@@ -63,7 +61,7 @@ export async function notifyNewSubmission(opts: {
                 buttons: [{
                   text: 'Review Now →',
                   onClick: {
-                    openLink: { url: `${APP_URL}/dashboard/admin` },
+                    openLink: { url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://hunting-cms.vercel.app'}/dashboard/admin` },
                   },
                 }],
               },
@@ -114,7 +112,7 @@ export async function notifyNewDesignRequest(opts: {
                 buttons: [{
                   text: 'View Request →',
                   onClick: {
-                    openLink: { url: `${APP_URL}/dashboard/design-requests` },
+                    openLink: { url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://hunting-cms.vercel.app'}/dashboard/design-requests` },
                   },
                 }],
               },
