@@ -222,8 +222,8 @@ async function uploadMedia(page: Page, filePath: string, fileName: string) {
   )
   await addBtn.click()
 
-  await page.waitForLoadState('networkidle')
-  await page.waitForTimeout(1500)
+  // UniFi UI doesn't reach networkidle after Add — use a fixed wait instead
+  await page.waitForTimeout(3000)
   log('Media uploaded and added to playlist')
 }
 
