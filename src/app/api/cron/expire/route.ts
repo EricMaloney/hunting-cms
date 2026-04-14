@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { removeSlide } from '@/lib/google/slides'
+import crypto from 'crypto'
 
 export async function GET(req: NextRequest) {
   // Support both Vercel Cron (Authorization header) and manual calls (?secret=)
@@ -19,8 +20,11 @@ export async function GET(req: NextRequest) {
   const querySecret = req.nextUrl.searchParams.get('secret')
   const validSecret = process.env.CRON_SECRET
 
+  const incoming = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (querySecret ?? '')
   const authorized =
-    authHeader === `Bearer ${validSecret}` || querySecret === validSecret
+    !!validSecret &&
+    incoming.length === validSecret.length &&
+    crypto.timingSafeEqual(Buffer.from(incoming), Buffer.from(validSecret))
 
   if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -32,7 +36,7 @@ export async function GET(req: NextRequest) {
   // Find approved submissions whose end date has passed
   const { data: expired, error } = await supabase
     .from('submissions')
-    .select('id, title, google_slides_slide_id, target_devices')
+    .select('id, title, file_name, google_slides_slide_id, target_devices')
     .eq('status', 'approved')
     .not('schedule_end', 'is', null)
     .lt('schedule_end', now)
@@ -57,6 +61,28 @@ export async function GET(req: NextRequest) {
         .from('submissions')
         .update({ status: 'expired' })
         .eq('id', submission.id)
+
+      // Queue UniFi removal if this submission targeted any UniFi devices
+      if (submission.file_name && submission.target_devices?.length) {
+        const { data: devices } = await supabase
+          .from('devices')
+          .select('id, platform')
+          .in('id', submission.target_devices)
+
+        const hasUnifi = devices?.some((d) => d.platform === 'unifi')
+        if (hasUnifi) {
+          await supabase.from('publish_queue').insert({
+            submission_id: submission.id,
+            title: `UNPUBLISH: ${submission.title}`,
+            file_url: '',
+            file_name: submission.file_name,
+            content_type: 'video', // only matters for publish; unused for unpublish
+            status: 'pending',
+            action: 'unpublish',
+          })
+          console.log(`[Expire Cron] Queued UniFi unpublish for "${submission.title}"`)
+        }
+      }
 
       // Remove Google Slide if one was created
       if (submission.google_slides_slide_id) {

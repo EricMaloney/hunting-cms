@@ -40,6 +40,65 @@ const CONTROLLER_URL = process.env.UNIFI_CONTROLLER_URL || 'https://10.0.30.2'
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
+/**
+ * Remove all playlist items whose asset name matches `fileName`.
+ * Uses the UniFi API directly (no Playwright) — works from Vercel or locally.
+ */
+export async function removeFromUnifi(fileName: string): Promise<PublishResult> {
+  try {
+    const session = await unifiLogin()
+    log(`removeFromUnifi: API session ok, removing "${fileName}"`)
+
+    const res = (await unifiRequest(
+      'GET',
+      `/proxy/connect/api/v2/playlists/${PLAYLIST_ID}`,
+      null,
+      session
+    )) as { data?: { name?: string; contents?: Array<UnifiContent & { asset: { id: string; name?: string } }> } }
+
+    const playlist = res?.data
+    if (!playlist?.contents) {
+      return { success: false, message: 'Could not fetch playlist', error: 'Empty playlist response' }
+    }
+
+    const baseName = path.basename(fileName, path.extname(fileName)).toLowerCase()
+    const before = playlist.contents.length
+    const filtered = playlist.contents.filter(
+      (c) => !(c.asset?.name ?? '').toLowerCase().includes(baseName)
+    )
+
+    if (filtered.length === before) {
+      log(`No items matching "${fileName}" found in playlist — nothing to remove`)
+      return { success: true, message: `"${fileName}" not found in playlist — already removed or never published.` }
+    }
+
+    const MAX_DURATION = 120
+    const updated = filtered.map((c) => ({
+      id: c.asset.id,
+      mute: c.mute,
+      duration: Math.min(c.duration, MAX_DURATION),
+      transition: c.transition,
+    }))
+
+    const putRes = (await unifiRequest(
+      'PUT',
+      `/proxy/connect/api/v2/playlists/${PLAYLIST_ID}`,
+      { name: playlist.name, contents: updated },
+      session
+    )) as { err?: unknown }
+
+    if (putRes.err) {
+      return { success: false, message: 'PUT failed during removal', error: JSON.stringify(putRes.err) }
+    }
+
+    const removed = before - filtered.length
+    log(`✅ Removed ${removed} item(s) matching "${fileName}" from playlist`)
+    return { success: true, message: `Removed ${removed} item(s) matching "${fileName}" from UniFi playlist.` }
+  } catch (err) {
+    return { success: false, message: 'UniFi remove failed', error: String(err) }
+  }
+}
+
 export async function publishToUnifi(
   fileUrl: string,
   fileName: string,
@@ -351,11 +410,13 @@ async function fixDurationViaApi(seconds: number) {
     const contents = playlist.contents
     log(`Playlist has ${contents.length} items, last item duration=${contents[contents.length - 1].duration}s`)
 
-    // Build PUT body using asset.id (stable), not the content slot id (changes each save)
+    // Build PUT body using asset.id (stable), not the content slot id (changes each save).
+    // Also cap any corrupted durations (e.g. from a failed partial save) to MAX_DURATION.
+    const MAX_DURATION = 120 // seconds — anything beyond 2 min is a data error
     const updated = contents.map((c, i) => ({
       id: c.asset.id,
       mute: c.mute,
-      duration: i === contents.length - 1 ? seconds : c.duration,
+      duration: i === contents.length - 1 ? seconds : Math.min(c.duration, MAX_DURATION),
       transition: c.transition,
     }))
 
@@ -432,8 +493,8 @@ async function savePlaylist(page: Page) {
   const saveBtn = page.locator('button:has-text("Save")').first()
   await saveBtn.waitFor({ timeout: 10000 })
   await saveBtn.click()
-  await page.waitForLoadState('networkidle')
-  await page.waitForTimeout(1000)
+  // UniFi UI doesn't reach networkidle after Save — use a fixed wait instead
+  await page.waitForTimeout(4000)
   log('Playlist saved')
 }
 

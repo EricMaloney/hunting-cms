@@ -3,7 +3,7 @@
 # and ensures we're in the right directory
 
 export PATH="/Users/ericmaloney/.nvm/versions/node/v24.14.0/bin:$PATH"
-cd /Users/ericmaloney/hss-internal-content/huntington-cms
+cd /Users/ericmaloney/projects/hss-internal-content/huntington-cms
 
 /Users/ericmaloney/.nvm/versions/node/v24.14.0/bin/node \
   --env-file=.env.local \

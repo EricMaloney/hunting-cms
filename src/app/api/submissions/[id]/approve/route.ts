@@ -151,6 +151,9 @@ export async function POST(
             content_type: submission.content_type,
             duration_seconds: submission.duration_seconds || null,
             status: 'pending',
+            action: 'publish',
+            schedule_start: submission.schedule_start || null,
+            schedule_end: submission.schedule_end || null,
           })
 
         if (queueError) {
