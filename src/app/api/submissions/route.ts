@@ -23,7 +23,15 @@ const createSubmissionSchema = z.object({
   schedule_end: z.string().datetime().optional().nullable(),
   reviewer_notes: z.string().max(1000).optional(),
   design_request_id: z.string().uuid().optional().nullable(),
-})
+}).refine(
+  (d) => {
+    if (d.schedule_start && d.schedule_end) {
+      return new Date(d.schedule_start) < new Date(d.schedule_end)
+    }
+    return true
+  },
+  { message: 'schedule_end must be after schedule_start', path: ['schedule_end'] }
+)
 
 // GET /api/submissions - list submissions
 export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse>> {
@@ -34,8 +42,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse>> 
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
-  const page = parseInt(searchParams.get('page') || '1', 10)
-  const perPage = parseInt(searchParams.get('per_page') || '20', 10)
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+  const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get('per_page') || '20', 10)))
   const offset = (page - 1) * perPage
 
   try {

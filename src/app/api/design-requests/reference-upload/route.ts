@@ -52,14 +52,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse>>
 
     if (uploadError) {
       console.error('Reference upload error:', uploadError)
-      // Provide helpful message if bucket doesn't exist
-      if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('bucket')) {
-        return NextResponse.json(
-          { error: 'Storage bucket "design-request-references" not found. Please create it in Supabase Storage.' },
-          { status: 500 }
-        )
-      }
-      return NextResponse.json({ error: uploadError.message }, { status: 500 })
+      return NextResponse.json({ error: 'File upload failed. Please try again.' }, { status: 500 })
     }
 
     const { data: publicUrlData } = supabaseAdmin.storage

@@ -95,7 +95,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse>>
   }
 }
 
-// GET /api/design-requests — authenticated, all roles
+// GET /api/design-requests — lead/admin see all; regular users see only their own
 export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse>> {
   const session = await getServerSession(authOptions)
   if (!session?.user) {
@@ -104,6 +104,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse>> 
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
+  const isElevated = session.user.role === 'admin' || session.user.role === 'lead'
 
   try {
     let query = supabaseAdmin
@@ -115,6 +116,11 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse>> 
       `
       )
       .order('created_at', { ascending: false })
+
+    // Regular users can only see their own requests
+    if (!isElevated) {
+      query = query.eq('user_id', session.user.id)
+    }
 
     if (status) {
       query = query.eq('status', status)

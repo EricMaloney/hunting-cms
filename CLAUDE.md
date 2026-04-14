@@ -1,28 +1,28 @@
 # Huntington Steel CMS — Project Notes & Handoff
-_Last updated: 2026-03-30_
+_Last updated: 2026-04-14 (scheduling fix, unpublish support, worker path fix)_
 
 ---
 
 ## What This Is
-An internal digital signage content management system for Huntington Steel. Users upload content (images, video) through a web app, an admin reviews and approves it, and approved content gets pushed to the appropriate display platform.
+An internal digital signage content management system for Huntington Steel. Users upload content (images, video) through a web app, a lead/admin reviews and approves it, and approved content gets pushed automatically to the UniFi display.
 
 ---
 
 ## Key People
-- **Admin / Final Approver:** Eric Maloney — emaloney@huntingtonsteel.com
-- **Users:** Currently 1 additional, expanding to 3–5. All have @huntingtonsteel.com Google accounts.
+- **Admin:** Eric Maloney — emaloney@huntingtonsteel.com
+- **Lead:** Heather Pittman — hpittman@huntingtonsteel.com
+- **Users:** 2 active, expanding to 3–5. All have @huntingtonsteel.com Google accounts.
 
 ---
 
 ## Current Display Hardware
 | Device | Model | Max Resolution | Platform |
 |---|---|---|---|
-| UC Cast | Ubiquiti UC-Cast | 4K | UniFi Connect (online) |
-| UC Cast Lite | Ubiquiti UC-Cast-Lite | 1080p | UniFi Connect (online) |
+| UC Cast | Ubiquiti UC-Cast | 4K | UniFi Connect |
+| UC Cast Lite | Ubiquiti UC-Cast-Lite | 1080p | UniFi Connect |
 
-- Eric accesses UniFi Connect through the **online platform** (unifi.ui.com) as a **"media manager"** role.
-- Both TVs share a single playlist: **"Announcements and Info"**
-- **Google Slides** is a secondary output — presentation auto-created on first approved submission to a Google Slides device.
+- Both TVs share a single playlist: **"Announcements and Info"** (ID: `2abbed8c-9280-46a4-958e-3318aa40bdfb`)
+- UniFi controller: **10.0.30.2** (local Cloud Key, self-signed cert, no 2FA on service account)
 
 ---
 
@@ -43,113 +43,145 @@ An internal digital signage content management system for Huntington Steel. User
 | Authentication | NextAuth.js v4 + Google OAuth | Restricted to @huntingtonsteel.com |
 | Email | Nodemailer + Gmail SMTP | App Password on emaloney@huntingtonsteel.com |
 | Styling | TailwindCSS + shadcn/ui | |
-| UniFi automation | Playwright (Chromium) | Built, blocked by 2FA — needs service account |
-| Google Slides | googleapis npm package | Built and wired in |
-| Hosting (future) | Vercel | Free tier |
+| UniFi publishing | Playwright (local Mac launchd worker) | Vercel can't run Playwright — runs on Mac |
+| Google Drive | googleapis (drive scope) | Community uploads mirrored to Drive folder |
+| Google Chat | Incoming webhook | Alerts to "CMS Alerts" space |
+| Hosting | Vercel | https://hunting-cms.vercel.app |
 
 ---
 
 ## Project Location
 ```
-/Users/ericmaloney/hss-internal-content/huntington-cms/
+/Users/ericmaloney/projects/hss-internal-content/huntington-cms/
 ```
+Local dev: **http://localhost:3001**
+Vercel: **https://hunting-cms.vercel.app**
+GitHub: **https://github.com/EricMaloney/hunting-cms**
 
 ---
 
 ## What's Built
 - ✅ Google OAuth login (restricted to @huntingtonsteel.com, auto-assigns admin to emaloney@)
-- ✅ Content upload form (drag-and-drop, image preview, device targeting, schedule start/end, aspect ratio validation)
+- ✅ Three-tier roles: user / lead / admin (Heather = lead)
+- ✅ Content upload form (drag-and-drop, image preview, device targeting, schedule start/end)
 - ✅ Approval workflow (pending → approved / rejected with feedback)
-- ✅ Email notifications (4 templates via Gmail SMTP)
+- ✅ Email notifications (submission received, admin review needed, approved, rejected)
+- ✅ Google Chat notifications (new submission, new design request, approved, rejected) → CMS Alerts space
 - ✅ Admin dashboard with stats bar (pending/approved/rejected/expired counts)
 - ✅ Pending badge on sidebar Review Queue (auto-refreshes every minute)
 - ✅ Device management (UC Cast + UC Cast Lite pre-loaded)
 - ✅ Content scheduling (go-live date, expiry date)
 - ✅ Content expiry cron — `/api/cron/expire?secret=8vVeZtdFLHA6SUT6cVEeQ`
-- ✅ UniFi Playwright automation (built + wired — service account credentials updated 2026-03-30)
-- ✅ Google Slides integration (built + wired — needs sign-out/sign-in to capture refresh token)
-- ✅ Content expiry cron — `/api/cron/expire?secret=8vVeZtdFLHA6SUT6cVEeQ`
-- ✅ Relative timestamps on cards, publish status indicators, fixed image z-index
+- ✅ UniFi publish queue — approval inserts to `publish_queue` (with `schedule_start`, `schedule_end`, `action`); local Mac worker picks it up
+- ✅ UniFi launchd worker — polls every 5 min; respects schedule_start (won't publish early); supports `action: unpublish` to remove items from playlist
+- ✅ Expire cron queues UniFi `unpublish` jobs when `schedule_end` passes — worker removes content from playlist automatically
+- ✅ Community library — public photo submission form at `/community` (no login required)
+- ✅ Community uploads stored in Supabase "community" bucket + mirrored to Google Drive folder
+- ✅ Library Manager — lead/admin browse grid with lightbox, open/download/copy/Drive buttons
+- ✅ Design requests — users can submit design briefs; lead/admin manage them
+- ✅ Sidebar: role-aware nav (Submit a Photo link for all, Library/All Submissions for lead+, admin-only sections)
 
 ---
 
 ## Current Status
-App is fully operational locally at **http://localhost:3000**
+App is fully operational on **Vercel** at https://hunting-cms.vercel.app
+Local dev runs at **http://localhost:3001**
 
-### .env.local — ALL COMPLETE
-| Variable | Status |
+### Roles
+| Role | Access |
 |---|---|
-| NEXTAUTH_SECRET | ✅ |
-| NEXTAUTH_URL | ✅ http://localhost:3000 |
-| GOOGLE_CLIENT_ID | ✅ |
-| GOOGLE_CLIENT_SECRET | ✅ |
-| NEXT_PUBLIC_SUPABASE_URL | ✅ https://otmhxnmkpujpopkaesff.supabase.co |
-| NEXT_PUBLIC_SUPABASE_ANON_KEY | ✅ |
-| SUPABASE_SERVICE_ROLE_KEY | ✅ |
-| GMAIL_USER | ✅ emaloney@huntingtonsteel.com |
-| GMAIL_APP_PASSWORD | ✅ |
-| ADMIN_EMAIL | ✅ emaloney@huntingtonsteel.com |
-| UNIFI_EMAIL | ✅ Claude (service account — no 2FA) |
-| UNIFI_PASSWORD | ✅ |
-| UNIFI_SITE_NAME | ✅ Huntington Steel Cloud Key Gen 2 |
-| UNIFI_PLAYLIST_NAME | ✅ Announcements and Info |
-| CRON_SECRET | ✅ 8vVeZtdFLHA6SUT6cVEeQ |
+| `user` | Submit content, design requests, community photo submissions, own submission history |
+| `lead` | Everything above + review queue, library, all submissions, community uploads |
+| `admin` | Everything above + user management, devices, full admin panel |
 
-### Supabase notes
-- Storage bucket: **"Submissions"** (capital S) — code uses this exact name. Do not change.
-- DB table: **"submissions"** (lowercase) — do not change.
-- Pending SQL migration (run in Supabase SQL Editor if not done yet):
-```sql
-ALTER TABLE submissions
-  ADD COLUMN IF NOT EXISTS google_slides_slide_id TEXT,
-  ADD COLUMN IF NOT EXISTS google_publish_status TEXT CHECK (google_publish_status IN ('pending', 'published', 'failed'));
+### Environment Variables
+All set in both `.env.local` and Vercel production:
 
-ALTER TABLE users
-  ADD COLUMN IF NOT EXISTS google_refresh_token TEXT;
-
-ALTER TABLE devices
-  ADD COLUMN IF NOT EXISTS device_id TEXT;
-```
+| Variable | Notes |
+|---|---|
+| NEXTAUTH_SECRET | Auth signing key |
+| NEXTAUTH_URL | https://hunting-cms.vercel.app (Vercel) / http://localhost:3001 (local) |
+| GOOGLE_CLIENT_ID / SECRET | OAuth app |
+| NEXT_PUBLIC_SUPABASE_URL | https://otmhxnmkpujpopkaesff.supabase.co |
+| NEXT_PUBLIC_SUPABASE_ANON_KEY | Public Supabase key |
+| SUPABASE_SERVICE_ROLE_KEY | Server-side admin key |
+| GMAIL_USER / GMAIL_APP_PASSWORD | Email notifications |
+| ADMIN_EMAIL | emaloney@huntingtonsteel.com |
+| UNIFI_EMAIL / UNIFI_PASSWORD | Service account "Claude" on local Cloud Key (no 2FA) |
+| UNIFI_CONTROLLER_URL | https://10.0.30.2 |
+| UNIFI_PLAYLIST_NAME | Announcements and Info |
+| CRON_SECRET | 8vVeZtdFLHA6SUT6cVEeQ |
+| GOOGLE_DRIVE_COMMUNITY_FOLDER_ID | 1-Os8xnyp9Ny3BSMuip1_H7z5g-XhmTDe |
+| GOOGLE_CHAT_WEBHOOK_URL | Incoming webhook for CMS Alerts space |
 
 ---
 
-## Next Steps (Priority Order)
-1. **Run SQL migration** — Open Supabase SQL Editor and run the 3 ALTER TABLE statements above (submissions, users, devices). One-time operation.
-2. **Test UniFi automation** — Submit + approve a test piece of content. Watch server logs for `[UniFi Publisher]` lines to confirm the service account (Claude) logs in and publishes without hitting 2FA.
-3. **Activate Google Slides** — First add a Google Slides device in the Devices page. Then sign out of the CMS and sign back in — this captures the Slides/Drive OAuth refresh token. After that, approving an image to the Slides device auto-publishes it.
-4. **Add 2nd user** — Get their @huntingtonsteel.com email → console.cloud.google.com → Huntington CMS project → OAuth consent screen → Test users → Add.
+## UniFi Publishing Architecture
+Playwright cannot run on Vercel serverless. Flow:
+
+1. Admin/lead approves submission → API inserts row into `publish_queue` (status: pending, action: publish, schedule_start, schedule_end)
+2. Local Mac launchd agent (`~/Library/LaunchAgents/com.huntington.unifi-worker.plist`) runs every 5 min
+3. Worker script (`scripts/unifi-worker.ts`) polls queue — **only picks up publish jobs where `schedule_start` is null or has arrived**
+4. For `action: publish` — Playwright: login → navigate to playlist → upload file → remove duplicates → save → fix duration via API PUT
+5. For `action: unpublish` — direct API only (no Playwright): GET playlist → filter out matching filename → PUT updated contents
+6. Worker marks job `published` or `failed`, updates submission's `unifi_publish_status`
+7. When `schedule_end` passes, expire cron inserts an `action: unpublish` job → worker removes it on next tick
+
+**Worker script location:** `scripts/unifi-worker.ts`
+**Shell wrapper:** `scripts/run-unifi-worker.sh` — sets PATH and `cd`s to project dir; **must be updated if project is moved**
+**Worker logs:** `/tmp/unifi-worker.log`
+**Error screenshots:** `/tmp/unifi-error-*.png`
+**Key gotcha:** UniFi UI never reaches `networkidle` after Add or Save — use `waitForTimeout(3000/4000)` instead.
+**Duration corruption guard:** `fixDurationViaApi` caps all preserved durations at 120s — prevents partial-save from corrupting item durations (root cause of 2026-04-07 display freeze where item [0] got set to 54015s).
+**If display appears frozen:** Check playlist via API — a corrupted duration on item [0] will make the display appear stuck. Fix by PUTting the playlist with corrected durations.
+**If content isn't publishing:** Check `/tmp/unifi-worker.log`. Common causes: (1) worker path mismatch after project move — update `scripts/run-unifi-worker.sh` and `~/Library/LaunchAgents/com.huntington.unifi-worker.plist`; (2) `schedule_start` in the future (intentional).
 
 ---
 
-## UniFi Automation Details
-- Script: `src/lib/unifi/publisher.ts`
-- Wired into: `src/app/api/submissions/[id]/approve/route.ts`
-- Credentials updated to service account **User: Claude** (no 2FA) — needs live test to confirm
-- If it fails, check screenshots dumped to `/tmp/unifi-error-*.png`
-
-## Google Slides Details
-- Module: `src/lib/google/slides.ts`
-- Presentation auto-created on first use, ID saved to the Google Slides device record
-- Only images are published as slides (videos not supported by Slides API image endpoint)
-- Slide ID stored per submission so it can be deleted when content expires
-- **Requires:** Eric to sign out + sign back in once to capture the Google refresh token
-
-## Content Expiry
-- Endpoint: `GET /api/cron/expire?secret=8vVeZtdFLHA6SUT6cVEeQ`
-- Marks expired submissions, removes their Google Slides slide
-- Run on a schedule when deployed to Vercel (Vercel Cron — free tier supports this)
+## Supabase Notes
+- Storage bucket: **"Submissions"** (capital S) — do not rename
+- Storage bucket: **"community"** (lowercase) — public, for community uploads
+- Key tables: `submissions`, `users`, `devices`, `publish_queue`, `community_uploads`, `audit_log`, `design_requests`
 
 ---
 
-## Future Work
-- [ ] **Mobile + tablet responsive pass** — current layout looks broken on small screens; needs full responsive audit (sidebar, cards, forms, approval panel, filters bar)
-- [ ] SMS notifications via Twilio
-- [ ] Usage stats / analytics dashboard
-- [ ] Content tagging / categories
+## Google Drive
+- Community uploads mirrored to folder: `1-Os8xnyp9Ny3BSMuip1_H7z5g-XhmTDe`
+- Uses admin OAuth refresh token stored in `users` table (admin's Google account)
+- Scope: `drive` (full, needed to write to pre-existing folders)
+- Files are made publicly readable after upload (`reader` + `anyone` permission)
+
+---
+
+## Google Chat Notifications
+- Webhook URL in env: `GOOGLE_CHAT_WEBHOOK_URL`
+- Space: CMS Alerts (Eric + Heather are members)
+- Triggers: new submission, new design request, submission approved, submission rejected
+- All notifications are `await`ed (not fire-and-forget) so Vercel doesn't kill them before they fire
+- `process.env` is read inside `postToChat()` — not at module level — to avoid stale values after hot-reload
+
+---
+
+## Security Notes
+- `.env.local` is gitignored — secrets never committed to source
+- Cron secret comparison uses `crypto.timingSafeEqual` (timing-attack safe)
+- Design requests GET: regular users only see their own; leads/admins see all
+- Submissions PATCH: full Zod schema validation — no untyped field writes
+- Pagination capped at 100 per page — no unbounded result sets
+- Schedule end/start validated at API level (end must be after start)
+- UniFi `ignoreHTTPSErrors: true` is intentional — controller is on trusted local network only
+- Google refresh token stored plaintext in Supabase `users` table — acceptable for internal tool; Supabase encrypts at rest
+
+## Future Enhancements (if desired)
+- Content tagging / categories
+- Analytics dashboard (basic stats are already surfacing in the admin panel)
+- Additional users (add via Google Cloud Console → OAuth consent screen → Test users)
 
 ---
 
 ## How to Resume
-1. Open terminal → `cd /Users/ericmaloney/hss-internal-content/huntington-cms`
-2. Start fresh Claude Code session
-3. Say "let's pick up where we left off" — Claude reads this file automatically.
+1. `cd /Users/ericmaloney/projects/hss-internal-content/huntington-cms`
+2. `npm run dev` (runs on port 3001)
+3. Start Claude Code session from **this directory** — Claude reads this file automatically and has full project context.
+
+> ⚠️ If you open Claude from a different directory (e.g. `~/hss-internal-content` or `~`), Claude won't load this file and won't know what project you're talking about. Always open from the project root.

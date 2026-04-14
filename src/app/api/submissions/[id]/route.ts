@@ -2,7 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { z } from 'zod'
 import type { ApiResponse } from '@/types'
+
+const patchUserSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().max(1000).optional(),
+  reviewer_notes: z.string().max(1000).optional(),
+  schedule_start: z.string().datetime().optional().nullable(),
+  schedule_end: z.string().datetime().optional().nullable(),
+})
+
+const patchAdminSchema = patchUserSchema.extend({
+  status: z.enum(['pending', 'approved', 'rejected', 'live', 'expired']).optional(),
+  admin_feedback: z.string().max(2000).optional(),
+  published_at: z.string().datetime().optional().nullable(),
+})
 
 interface RouteParams {
   params: { id: string }
@@ -82,21 +97,18 @@ export async function PATCH(
     }
 
     const body = await req.json()
+    const isAdmin = session.user.role === 'admin'
+    const schema = isAdmin ? patchAdminSchema : patchUserSchema
+    const parsed = schema.safeParse(body)
 
-    // Whitelist updatable fields for regular users
-    const allowedFields = ['title', 'description', 'reviewer_notes', 'schedule_start', 'schedule_end']
-    const adminFields = ['status', 'admin_feedback', 'published_at']
-
-    const updates: Record<string, unknown> = {}
-    for (const field of allowedFields) {
-      if (field in body) updates[field] = body[field]
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', data: parsed.error.flatten() },
+        { status: 400 }
+      )
     }
 
-    if (session.user.role === 'admin') {
-      for (const field of adminFields) {
-        if (field in body) updates[field] = body[field]
-      }
-    }
+    const updates = parsed.data as Record<string, unknown>
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
