@@ -32,3 +32,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# one-off scripts with hardcoded credentials — do not commit
+scripts/sync-drive.mjs
