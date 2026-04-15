@@ -61,11 +61,15 @@ export async function removeFromUnifi(fileName: string): Promise<PublishResult> 
       return { success: false, message: 'Could not fetch playlist', error: 'Empty playlist response' }
     }
 
-    const baseName = path.basename(fileName, path.extname(fileName)).toLowerCase()
+    // Use exact base-name comparison (not substring) to avoid e.g.
+    // "file.mp4" accidentally matching "file (1).mp4" during unpublish.
+    const targetBase = path.basename(fileName, path.extname(fileName)).toLowerCase()
     const before = playlist.contents.length
-    const filtered = playlist.contents.filter(
-      (c) => !(c.asset?.name ?? '').toLowerCase().includes(baseName)
-    )
+    const filtered = playlist.contents.filter((c) => {
+      const assetName = (c.asset?.name ?? '').toLowerCase()
+      const assetBase = path.basename(assetName, path.extname(assetName))
+      return assetBase !== targetBase
+    })
 
     if (filtered.length === before) {
       log(`No items matching "${fileName}" found in playlist — nothing to remove`)
@@ -438,17 +442,25 @@ async function fixDurationViaApi(seconds: number) {
 }
 
 async function removeDuplicates(page: Page, fileName: string) {
-  const baseName = path.basename(fileName, path.extname(fileName)).toLowerCase()
+  const targetBase = path.basename(fileName, path.extname(fileName)).toLowerCase()
+  const targetExt = path.extname(fileName).toLowerCase()
 
   try {
     // Items use class "item" — skip index 0 which is the header row
     const allItems = await page.locator('div.item').all()
-    log(`Found ${allItems.length} items in playlist, scanning for duplicates of "${baseName}"`)
+    log(`Found ${allItems.length} items in playlist, scanning for duplicates of "${targetBase}"`)
 
     const matchingIndices: number[] = []
     for (let i = 0; i < allItems.length; i++) {
       const text = ((await allItems[i].textContent()) || '').toLowerCase()
-      if (text.includes(baseName)) {
+      // Exact match: item text must equal the base name (with or without extension)
+      // to avoid "file" matching "file (1)" as a false-positive duplicate.
+      const textBase = path.basename(text.trim(), path.extname(text.trim()))
+      const textExt = path.extname(text.trim())
+      const exactMatch =
+        textBase === targetBase &&
+        (textExt === targetExt || textExt === '' || targetExt === '')
+      if (exactMatch) {
         matchingIndices.push(i)
       }
     }
