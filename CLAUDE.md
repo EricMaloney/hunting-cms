@@ -1,5 +1,5 @@
 # Huntington Steel CMS — Project Notes & Handoff
-_Last updated: 2026-04-14 (scheduling fix, unpublish support, worker path fix)_
+_Last updated: 2026-04-15 (wake trigger, stuck-job reset, filename fix, OAuth scope reduction)_
 
 ---
 
@@ -75,6 +75,9 @@ GitHub: **https://github.com/EricMaloney/hunting-cms**
 - ✅ UniFi publish queue — approval inserts to `publish_queue` (with `schedule_start`, `schedule_end`, `action`); local Mac worker picks it up
 - ✅ UniFi launchd worker — polls every 5 min; respects schedule_start (won't publish early); supports `action: unpublish` to remove items from playlist
 - ✅ Expire cron queues UniFi `unpublish` jobs when `schedule_end` passes — worker removes content from playlist automatically
+- ✅ Stuck-job auto-reset — worker resets jobs stuck in `processing` >10 min back to `pending` on each run
+- ✅ Wake-on-sleep trigger — launchd WatchPaths on `/private/var/run/resolv.conf` fires worker on Mac wake
+- ✅ Nightly Mac wake — recurring Calendar event at 12:04 AM wakes Mac for midnight content scheduling (hidden iCloud calendar, not on iPhone)
 - ✅ Community library — public photo submission form at `/community` (no login required)
 - ✅ Community uploads stored in Supabase "community" bucket + mirrored to Google Drive folder
 - ✅ Library Manager — lead/admin browse grid with lightbox, open/download/copy/Drive buttons
@@ -132,9 +135,12 @@ Playwright cannot run on Vercel serverless. Flow:
 **Worker logs:** `/tmp/unifi-worker.log`
 **Error screenshots:** `/tmp/unifi-error-*.png`
 **Key gotcha:** UniFi UI never reaches `networkidle` after Add or Save — use `waitForTimeout(3000/4000)` instead.
+**Stuck-job recovery:** Worker auto-resets any job in `processing` for >10 min back to `pending` at the start of each run. Handles Mac sleep interruptions mid-Playwright.
+**Wake trigger:** `~/Library/LaunchAgents/com.huntington.unifi-worker-wake.plist` watches `/private/var/run/resolv.conf` (updated on network wake). Worker fires within seconds of Mac waking. Nightly Mac wake via Calendar recurring event at 12:04 AM (see Troubleshooting).
+**Filename matching:** `removeFromUnifi()` uses exact base-name equality (not substring) to avoid "file.mp4" accidentally matching "file (1).mp4".
 **Duration corruption guard:** `fixDurationViaApi` caps all preserved durations at 120s — prevents partial-save from corrupting item durations (root cause of 2026-04-07 display freeze where item [0] got set to 54015s).
 **If display appears frozen:** Check playlist via API — a corrupted duration on item [0] will make the display appear stuck. Fix by PUTting the playlist with corrected durations.
-**If content isn't publishing:** Check `/tmp/unifi-worker.log`. Common causes: (1) worker path mismatch after project move — update `scripts/run-unifi-worker.sh` and `~/Library/LaunchAgents/com.huntington.unifi-worker.plist`; (2) `schedule_start` in the future (intentional).
+**If content isn't publishing:** Check `/tmp/unifi-worker.log`. Common causes: (1) worker path mismatch after project move — update `scripts/run-unifi-worker.sh` and `~/Library/LaunchAgents/com.huntington.unifi-worker.plist`; (2) `schedule_start` in the future (intentional); (3) job stuck in `processing` — Mac slept mid-job; worker will auto-reset on next run; OR manually: `UPDATE publish_queue SET status='pending', started_at=NULL WHERE status='processing'`; (4) Mac was asleep at scheduled time and Calendar wake isn't set up — verify Calendar event exists at 12:04 AM in iCloud (hidden from iPhone).
 
 ---
 
@@ -171,6 +177,7 @@ Playwright cannot run on Vercel serverless. Flow:
 - Schedule end/start validated at API level (end must be after start)
 - UniFi `ignoreHTTPSErrors: true` is intentional — controller is on trusted local network only
 - Google refresh token stored plaintext in Supabase `users` table — acceptable for internal tool; Supabase encrypts at rest
+- Google OAuth scopes: login requests `openid email profile` only. Drive/Slides scopes were removed — they alarmed users with unnecessary permissions. Admin refresh token (for Drive mirroring + Slides) is already stored in `users` table and remains valid.
 
 ## Future Enhancements (if desired)
 - Content tagging / categories
