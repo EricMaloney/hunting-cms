@@ -21,6 +21,27 @@ async function run() {
   const now = new Date().toISOString()
   console.log(`[Worker] ${now} — checking publish queue...`)
 
+  // Reset jobs stuck in "processing" for more than 10 minutes.
+  // This handles the case where the Mac slept mid-job and the worker
+  // was killed before it could mark the job as published or failed.
+  const stuckCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+  const { data: stuckJobs } = await supabase
+    .from('publish_queue')
+    .select('id, title')
+    .eq('status', 'processing')
+    .lt('started_at', stuckCutoff)
+
+  if (stuckJobs && stuckJobs.length > 0) {
+    console.log(`[Worker] Resetting ${stuckJobs.length} stuck job(s) to pending...`)
+    for (const stuck of stuckJobs) {
+      await supabase
+        .from('publish_queue')
+        .update({ status: 'pending', started_at: null })
+        .eq('id', stuck.id)
+      console.log(`[Worker] Reset stuck job ${stuck.id}: "${stuck.title}"`)
+    }
+  }
+
   // Fetch pending jobs that are either:
   //  - unpublish actions (remove immediately regardless of schedule)
   //  - publish actions whose schedule_start has arrived (or has no schedule)
