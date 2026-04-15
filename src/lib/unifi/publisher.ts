@@ -470,7 +470,7 @@ async function removeDuplicates(page: Page, fileName: string) {
       return
     }
 
-    log(`Found ${matchingIndices.length} items matching "${baseName}" — removing ${matchingIndices.length - 1} older duplicate(s)`)
+    log(`Found ${matchingIndices.length} items matching "${targetBase}" — removing ${matchingIndices.length - 1} older duplicate(s)`)
 
     // Keep the LAST match (most recently added), remove the earlier ones
     const toRemove = matchingIndices.slice(0, -1)
