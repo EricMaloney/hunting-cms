@@ -10,17 +10,17 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          prompt: 'consent',
+          // Only request identity scopes for regular login.
+          // Drive + Slides scopes were previously requested here but alarmed
+          // users on every login — those permissions are only needed for the
+          // admin's stored refresh token (Drive mirroring, Slides publishing)
+          // which was already captured and lives in the users table.
+          // If the admin token ever needs to be re-authorized, use the
+          // /admin/reconnect-drive page (future) to trigger incremental auth.
           access_type: 'offline',
           response_type: 'code',
           hd: 'huntingtonsteel.com',
-          scope: [
-            'openid',
-            'email',
-            'profile',
-            'https://www.googleapis.com/auth/presentations',
-            'https://www.googleapis.com/auth/drive',
-          ].join(' '),
+          scope: 'openid email profile',
         },
       },
     }),
