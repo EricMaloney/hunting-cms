@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Huntington Steel CMS — checks the publish queue every 5 minutes and pushes approved content to UniFi Connect TVs.</Description>
+    <URI>\Huntington CMS Worker</URI>
+  </RegistrationInfo>
+
+  <Triggers>
+    <!-- Run every 5 minutes, all day, every day -->
+    <CalendarTrigger>
+      <Repetition>
+        <Interval>PT5M</Interval>
+        <Duration>P9999D</Duration>
+        <StopAtDurationEnd>false</StopAtDurationEnd>
+      </Repetition>
+      <StartBoundary>2026-01-01T00:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+
+    <!-- Also fire immediately when the PC wakes / someone logs in -->
+    <SessionStateChangeTrigger>
+      <StartBoundary>2026-01-01T00:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <StateChange>SessionUnlock</StateChange>
+    </SessionStateChangeTrigger>
+  </Triggers>
+
+  <Principals>
+    <Principal id="Author">
+      <!-- UserId and LogonType are filled in by setup.cmd via /ru /rp flags -->
+      <LogonType>Password</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+
+  <Settings>
+    <!-- Do not start a second copy if already running -->
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+
+    <!-- Run even when on battery / not plugged in -->
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+
+    <!-- If the PC was off during a scheduled run, catch up immediately on next boot -->
+    <StartWhenAvailable>true</StartWhenAvailable>
+
+    <!-- Require LAN connectivity (worker talks to 10.0.30.2) -->
+    <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
+
+    <!-- Kill the task if it somehow hangs longer than 10 minutes -->
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <Priority>7</Priority>
+
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+  </Settings>
+
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\huntington-worker\scripts\windows\run-worker.cmd</Command>
+    </Exec>
+  </Actions>
+</Task>
